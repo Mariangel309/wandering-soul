@@ -1,0 +1,81 @@
+[
+  {
+    "player_name": "maria",
+    "date": "2025-11-12 11:35:42",
+    "duration_seconds": 70,
+    "duration_formatted": "1m 10s",
+    "enemies_defeated": 138970,
+    "mana_collected": 3,
+    "deaths": 2,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "cuco",
+    "date": "2025-11-12 11:36:47",
+    "duration_seconds": 13,
+    "duration_formatted": "13s",
+    "enemies_defeated": 0,
+    "mana_collected": 0,
+    "deaths": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "susi",
+    "date": "2025-11-12 11:39:17",
+    "duration_seconds": 139,
+    "duration_formatted": "2m 19s",
+    "enemies_defeated": 32255,
+    "mana_collected": 3,
+    "deaths": 10,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "mau",
+    "date": "2025-11-12 11:40:10",
+    "duration_seconds": 5,
+    "duration_formatted": "5s",
+    "enemies_defeated": 0,
+    "mana_collected": 0,
+    "deaths": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "mau",
+    "date": "2025-11-12 11:40:39",
+    "duration_seconds": 7,
+    "duration_formatted": "7s",
+    "enemies_defeated": 0,
+    "mana_collected": 0,
+    "deaths": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "mari",
+    "date": "2025-11-12 11:52:00",
+    "duration_seconds": 673,
+    "duration_formatted": "11m 13s",
+    "enemies_defeated": 241689,
+    "mana_collected": 49,
+    "deaths": 58,
+    "final_level": "level_2",
+    "levels_completed": [
+      "level_2"
+    ]
+  },
+  {
+    "player_name": "lili",
+    "date": "2025-11-16 16:19:08",
+    "duration_seconds": 10,
+    "duration_formatted": "10s",
+    "enemies_defeated": 0,
+    "mana_collected": 0,
+    "deaths": 1,
+    "final_level": "level_1",
+    "levels_completed": []
+  }
+]

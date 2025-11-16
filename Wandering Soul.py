@@ -3,6 +3,8 @@ import math
 import random
 import time
 import os
+import json
+import datetime
 
 import pygame
 from pygame.locals import *
@@ -19,16 +21,390 @@ TILE_SIZE = 12
 
 pygame.mixer.pre_init(44100, -16, 2, 512)
 pygame.init()
-pygame.display.set_caption('Wandering Soul')
+pygame.display.set_caption('NetGuardian')
 screen = pygame.display.set_mode((900, 600), pygame.SCALED + pygame.RESIZABLE)
-pygame.mouse.set_visible(False)
+pygame.mouse.set_visible(True)
 display = pygame.Surface((300, 200))
 clock = pygame.time.Clock()
+
+# ============= SISTEMA DE HISTORIAL =============
+
+class GameHistory:
+    def __init__(self):
+        self.history_file = 'data/game_history.json'
+        self.current_session = {
+            'player_name': '',
+            'start_time': 0,
+            'enemies_defeated': 0,
+            'mana_collected': 0,
+            'deaths': 0
+        }
+        self.load_history()
+    
+    def load_history(self):
+        try:
+            with open(self.history_file, 'r', encoding='utf-8') as f:
+                self.history = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.history = []
+            os.makedirs('data', exist_ok=True)
+    
+    def save_history(self):
+        try:
+            os.makedirs('data', exist_ok=True)
+            with open(self.history_file, 'w', encoding='utf-8') as f:
+                json.dump(self.history, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error guardando historial: {e}")
+    
+    def start_session(self, player_name):
+        self.current_session = {
+            'player_name': player_name,
+            'start_time': datetime.datetime.now().isoformat(),
+            'enemies_defeated': 0,
+            'mana_collected': 0,
+            'deaths': 0,
+            'levels_completed': []
+        }
+    
+    def end_session(self, final_level):
+        end_time = datetime.datetime.now()
+        start_time = datetime.datetime.fromisoformat(self.current_session['start_time'])
+        duration = (end_time - start_time).total_seconds()
+        
+        session_data = {
+            'player_name': self.current_session['player_name'],
+            'date': end_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'duration_seconds': int(duration),
+            'duration_formatted': self.format_duration(duration),
+            'enemies_defeated': self.current_session['enemies_defeated'],
+            'mana_collected': self.current_session['mana_collected'],
+            'deaths': self.current_session['deaths'],
+            'final_level': final_level,
+            'levels_completed': self.current_session['levels_completed']
+        }
+        
+        self.history.append(session_data)
+        self.save_history()
+    
+    def format_duration(self, seconds):
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        if hours > 0:
+            return f"{hours}h {minutes}m {secs}s"
+        elif minutes > 0:
+            return f"{minutes}m {secs}s"
+        else:
+            return f"{secs}s"
+    
+    def add_enemy_defeated(self):
+        self.current_session['enemies_defeated'] += 1
+    
+    def add_mana_collected(self):
+        self.current_session['mana_collected'] += 1
+    
+    def add_death(self):
+        self.current_session['deaths'] += 1
+    
+    def add_level_completed(self, level_name):
+        if level_name not in self.current_session['levels_completed']:
+            self.current_session['levels_completed'].append(level_name)
+
+
+# ============= SISTEMA DE MENÚ =============
+
+class Button:
+    def __init__(self, x, y, width, height, text, font):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = text
+        self.font = font
+        self.hovered = False
+        self.color_normal = (40, 40, 80)
+        self.color_hover = (60, 60, 120)
+        self.color_border = (100, 150, 255)
+    
+    def draw(self, surface):
+        color = self.color_hover if self.hovered else self.color_normal
+        pygame.draw.rect(surface, color, self.rect)
+        pygame.draw.rect(surface, self.color_border, self.rect, 2)
+        
+        text_width = self.font.width(self.text)
+        text_x = self.rect.centerx - text_width // 2
+        text_y = self.rect.centery - 4
+        self.font.render(self.text, surface, (text_x, text_y))
+    
+    def check_hover(self, mouse_pos):
+        scaled_pos = (mouse_pos[0] * display.get_width() // screen.get_width(),
+                     mouse_pos[1] * display.get_height() // screen.get_height())
+        self.hovered = self.rect.collidepoint(scaled_pos)
+        return self.hovered
+    
+    def check_click(self, mouse_pos, mouse_pressed):
+        scaled_pos = (mouse_pos[0] * display.get_width() // screen.get_width(),
+                     mouse_pos[1] * display.get_height() // screen.get_height())
+        if self.rect.collidepoint(scaled_pos) and mouse_pressed:
+            return True
+        return False
+
+
+class VolumeControl:
+    def __init__(self, x, y, font):
+        self.x = x
+        self.y = y
+        self.font = font
+        self.volume = pygame.mixer.music.get_volume()
+        self.plus_button = Button(x + 50, y, 20, 20, '+', font)
+        self.minus_button = Button(x + 20, y, 20, 20, '-', font)
+    
+    def draw(self, surface):
+        volume_text = f'{int(self.volume * 100)}'
+        self.font.render(volume_text, surface, (self.x, self.y + 5))
+        self.plus_button.draw(surface)
+        self.minus_button.draw(surface)
+    
+    def update(self, mouse_pos, mouse_pressed):
+        self.plus_button.check_hover(mouse_pos)
+        self.minus_button.check_hover(mouse_pos)
+        
+        if self.plus_button.check_click(mouse_pos, mouse_pressed):
+            self.volume = min(1.0, self.volume + 0.1)
+            pygame.mixer.music.set_volume(self.volume)
+            return True
+        
+        if self.minus_button.check_click(mouse_pos, mouse_pressed):
+            self.volume = max(0.0, self.volume - 0.1)
+            pygame.mixer.music.set_volume(self.volume)
+            return True
+        
+        return False
+
+
+class InputBox:
+    def __init__(self, x, y, width, height, font, max_length=15):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.font = font
+        self.text = ''
+        self.max_length = max_length
+        self.active = False
+    
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            scaled_pos = (event.pos[0] * display.get_width() // screen.get_width(),
+                         event.pos[1] * display.get_height() // screen.get_height())
+            self.active = self.rect.collidepoint(scaled_pos)
+        
+        if event.type == pygame.KEYDOWN and self.active:
+            if event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            elif event.key == pygame.K_RETURN:
+                self.active = False
+            elif len(self.text) < self.max_length:
+                char = event.unicode
+                if char.isprintable() and char.isalnum() or char == ' ':
+                    self.text += char
+    
+    def draw(self, surface, game_time):
+        color = (60, 60, 120) if self.active else (40, 40, 80)
+        pygame.draw.rect(surface, color, self.rect)
+        pygame.draw.rect(surface, (100, 150, 255), self.rect, 2)
+        
+        display_text = self.text if self.text else 'Nombre...'
+        text_color = (255, 255, 255) if self.text else (150, 150, 150)
+        
+        temp_font = text.Font('data/fonts/small_font.png', text_color)
+        temp_font.render(display_text, surface, (self.rect.x + 5, self.rect.y + 5))
+        
+        if self.active and game_time % 30 < 15:
+            cursor_x = self.rect.x + 5 + self.font.width(self.text)
+            pygame.draw.rect(surface, (255, 255, 255), 
+                           (cursor_x, self.rect.y + 5, 2, 10))
+
+
+class MenuState:
+    MAIN = 0
+    HISTORY = 1
+    NAME_INPUT = 2
+
+
+class GameMenu:
+    def __init__(self, display, font):
+        self.display = display
+        self.font = font
+        self.state = MenuState.MAIN
+        self.history = GameHistory()
+        
+        center_x = display.get_width() // 2
+        button_width = 120
+        button_height = 25
+        
+        self.start_button = Button(center_x - button_width // 2, 100, 
+                                   button_width, button_height, 'INICIAR', font)
+        self.history_button = Button(center_x - button_width // 2, 135, 
+                                     button_width, button_height, 'HISTORIAL', font)
+        self.exit_button = Button(center_x - button_width // 2, 170, 
+                                  button_width, button_height, 'SALIR', font)
+        
+        self.volume_control = VolumeControl(display.get_width() - 80, 10, font)
+        self.name_input = InputBox(center_x - 70, 100, 140, 20, font)
+        self.confirm_button = Button(center_x - 40, 130, 80, 20, 'CONTINUAR', font)
+        self.back_button = Button(10, display.get_height() - 30, 60, 20, 'VOLVER', font)
+        
+        self.history_scroll = 0
+        self.max_history_display = 8
+        self.clicked_last_frame = False
+    
+    def draw_main_menu(self, game_time):
+        self.display.fill((20, 19, 39))
+        
+        title = 'NETGUARDIAN - THE LAST FIREWALL'
+        title_x = self.display.get_width() // 2 - self.font.width(title) // 2
+        
+        black_font = text.Font('data/fonts/small_font.png', (0, 0, 1))
+        blue_font = text.Font('data/fonts/small_font.png', (0, 152, 219))
+        
+        black_font.render(title, self.display, (title_x + 1, 41))
+        blue_font.render(title, self.display, (title_x, 40))
+        self.font.render(title, self.display, (title_x, 39))
+        
+        for i in range(3):
+            offset_x = math.sin(game_time / 20 + i * math.pi * 2 / 3) * 3
+            offset_y = math.cos(game_time / 15 + i * math.pi * 2 / 3) * 2
+            render_mana([title_x + i * 50 + offset_x, 60 + offset_y], 
+                       size=[1, 2], color1=(255, 255, 255), color2=(12, 230, 242))
+        
+        self.start_button.draw(self.display)
+        self.history_button.draw(self.display)
+        self.exit_button.draw(self.display)
+        self.volume_control.draw(self.display)
+        
+        instructions = 'Flechas para mover'
+        inst_x = self.display.get_width() // 2 - self.font.width(instructions) // 2
+        small_font = text.Font('data/fonts/small_font.png', (150, 150, 150))
+        small_font.render(instructions, self.display, (inst_x, self.display.get_height() - 20))
+    
+    def draw_name_input(self, game_time):
+        self.display.fill((20, 19, 39))
+        
+        prompt = 'Ingresa tu nombre:'
+        prompt_x = self.display.get_width() // 2 - self.font.width(prompt) // 2
+        self.font.render(prompt, self.display, (prompt_x, 70))
+        
+        self.name_input.draw(self.display, game_time)
+        
+        if self.name_input.text:
+            self.confirm_button.draw(self.display)
+    
+    def draw_history(self):
+        self.display.fill((20, 19, 39))
+        
+        title = 'HISTORIAL DE PARTIDAS'
+        title_x = self.display.get_width() // 2 - self.font.width(title) // 2
+        self.font.render(title, self.display, (title_x, 10))
+        
+        pygame.draw.line(self.display, (100, 150, 255), 
+                        (10, 25), (self.display.get_width() - 10, 25), 1)
+        
+        if not self.history.history:
+            no_data = 'No hay partidas'
+            no_data_x = self.display.get_width() // 2 - self.font.width(no_data) // 2
+            self.font.render(no_data, self.display, (no_data_x, 100))
+        else:
+            y_offset = 35
+            visible_history = self.history.history[self.history_scroll:
+                                                   self.history_scroll + self.max_history_display]
+            
+            for i, session in enumerate(visible_history):
+                if i % 2 == 0:
+                    pygame.draw.rect(self.display, (30, 29, 49), 
+                                   (5, y_offset - 2, self.display.get_width() - 10, 18))
+                
+                player_name = session['player_name'][:12]
+                duration = session['duration_formatted']
+                enemies = str(session['enemies_defeated'])
+                
+                small_font = text.Font('data/fonts/small_font.png', (200, 200, 200))
+                
+                small_font.render(f'{player_name}', self.display, (10, y_offset))
+                small_font.render(f'{duration}', self.display, (100, y_offset))
+                small_font.render(f'E:{enemies}', self.display, (170, y_offset))
+                
+                date_font = text.Font('data/fonts/small_font.png', (120, 120, 120))
+                date_font.render(session['date'][11:16], self.display, (220, y_offset))
+                
+                y_offset += 18
+            
+            if len(self.history.history) > self.max_history_display:
+                scroll_text = f'{self.history_scroll + 1}-{min(self.history_scroll + self.max_history_display, len(self.history.history))} / {len(self.history.history)}'
+                scroll_x = self.display.get_width() // 2 - self.font.width(scroll_text) // 2
+                small_font = text.Font('data/fonts/small_font.png', (100, 100, 100))
+                small_font.render(scroll_text, self.display, (scroll_x, y_offset + 5))
+        
+        self.back_button.draw(self.display)
+    
+    def update(self, game_time, events, mouse_pos, mouse_pressed):
+        single_click = mouse_pressed and not self.clicked_last_frame
+        self.clicked_last_frame = mouse_pressed
+        
+        self.volume_control.update(mouse_pos, single_click)
+        
+        if self.state == MenuState.MAIN:
+            self.start_button.check_hover(mouse_pos)
+            self.history_button.check_hover(mouse_pos)
+            self.exit_button.check_hover(mouse_pos)
+            
+            if self.start_button.check_click(mouse_pos, single_click):
+                self.state = MenuState.NAME_INPUT
+                return 'name_input'
+            
+            if self.history_button.check_click(mouse_pos, single_click):
+                self.state = MenuState.HISTORY
+                self.history_scroll = 0
+                return 'history'
+            
+            if self.exit_button.check_click(mouse_pos, single_click):
+                return 'exit'
+            
+            self.draw_main_menu(game_time)
+        
+        elif self.state == MenuState.NAME_INPUT:
+            for event in events:
+                self.name_input.handle_event(event)
+            
+            self.confirm_button.check_hover(mouse_pos)
+            
+            if self.name_input.text and self.confirm_button.check_click(mouse_pos, single_click):
+                player_name = self.name_input.text or "Jugador"
+                self.history.start_session(player_name)
+                self.name_input.text = ''
+                return 'start_game'
+            
+            self.draw_name_input(game_time)
+        
+        elif self.state == MenuState.HISTORY:
+            self.back_button.check_hover(mouse_pos)
+            
+            if self.back_button.check_click(mouse_pos, single_click):
+                self.state = MenuState.MAIN
+                return 'main'
+            
+            for event in events:
+                if event.type == pygame.MOUSEWHEEL:
+                    self.history_scroll = max(0, min(
+                        len(self.history.history) - self.max_history_display,
+                        self.history_scroll - event.y
+                    ))
+            
+            self.draw_history()
+        
+        return None
+
+
+# ============= JUEGO ORIGINAL =============
 
 spritesheets, spritesheets_data = spritesheet_loader.load_spritesheets('data/images/tilesets/')
 level_map = tile_map.TileMap((TILE_SIZE, TILE_SIZE), (300, 200))
 level_name = 'level_1'
-level_map.load_map(level_name + '.json')
 
 level_spawns = {
     'debug': [180, 50],
@@ -189,10 +565,43 @@ map_transition = 0
 eye_target_height = 30
 eye_height = 30
 
+# Inicializar menú
+game_menu = GameMenu(display, font)
+game_state = 'menu'
+game_history = game_menu.history
+
 pygame.mixer.music.load('data/music_1.wav')
 pygame.mixer.music.play(-1)
 
 while True:
+    # ============= MENÚ =============
+    if game_state == 'menu':
+        current_events = pygame.event.get()
+        for event in current_events:
+            if event.type == QUIT:
+                pygame.quit()
+                sys.exit()
+        
+        menu_result = game_menu.update(game_time, current_events, 
+                                      pygame.mouse.get_pos(), 
+                                      pygame.mouse.get_pressed()[0])
+        
+        if menu_result == 'start_game':
+            game_state = 'playing'
+            level_name = 'level_1'
+            reload_level(True)
+            pygame.mouse.set_visible(False)
+        elif menu_result == 'exit':
+            pygame.quit()
+            sys.exit()
+        
+        screen.blit(pygame.transform.scale(display, screen.get_size()), (0, 0))
+        pygame.display.update()
+        clock.tick(60)
+        game_time += 1
+        continue
+    
+    # ============= JUEGO =============
     display.fill((20, 19, 39))
 
     game_time += 1
@@ -210,6 +619,7 @@ while True:
             if next_level:
                 level_n = int(level_name.split('_')[-1])
                 level_name = level_name.split('_')[0] + '_' + str(level_n + 1)
+                game_history.add_level_completed(level_name)
             reload_level(next_level)
         if map_transition > 120:
             map_transition = 0
@@ -319,6 +729,7 @@ while True:
         player.rotation -= 10
     if death == 2:
         player_velocity[1] = -7
+        game_history.add_death()
     movement[0] *= min(dt, 3)
     movement[1] *= dt
     movement[1] = min(8, movement[1])
@@ -392,6 +803,7 @@ while True:
                 sounds['mana_1'].play()
                 sounds['mana_2'].play()
                 player_mana += 1
+                game_history.add_mana_collected()
                 rm = layer
                 for i in range(2):
                     sparks.append([tile_center.copy(), math.pi / 2 + math.pi * i, 10, 6, (255, 255, 255)])
@@ -404,12 +816,20 @@ while True:
     # input
     for event in pygame.event.get():
         if event.type == QUIT:
+            if game_state == 'playing':
+                game_history.end_session(level_name)
             pygame.quit()
             sys.exit()
         if event.type == KEYDOWN:
             if event.key == K_ESCAPE:
-                pygame.quit()
-                sys.exit()
+                if game_state == 'playing':
+                    game_history.end_session(level_name)
+                    game_state = 'menu'
+                    game_menu.state = MenuState.MAIN
+                    pygame.mouse.set_visible(True)
+                else:
+                    pygame.quit()
+                    sys.exit()
             if event.key == K_e:
                 print(player.pos)
             if event.key == K_q:
@@ -556,6 +976,7 @@ while True:
             door = (330, 372)
             ready_to_exit = True
             sounds['end_level'].play()
+    
     if level_name == 'level_3':
         last = events['lv3timer']
         events['lv3timer'] += dt
@@ -657,6 +1078,7 @@ while True:
                 particles.append(particles_m.Particle(eye_base[0], eye_base[1], 'red_light', vel, 0.2, 1.5 + random.randint(0, 20) / 10, custom_color=(255, 255, 255)))
         if (last < 1200) and (events['lv3timer'] >= 1200):
             player_message = [200, 'There\'s more?', '']
+    
     if reset:
         if soul_mode:
             soul_mode = 0
@@ -672,12 +1094,20 @@ while True:
         r = player.rect
     else:
         r = pygame.Rect(soul.center[0] - 3, soul.center[1] - 7, 7, 7)
-    for projectile in projectiles:
-        # pos, velocity, type
+    
+    projectiles_removed = 0
+    for i, projectile in enumerate(projectiles):
         if len(projectile) == 3:
             projectile.append(random.random() + 1)
         projectile[0][0] += projectile[1][0] * 0.2 * dt
         projectile[0][1] += projectile[1][1] * 0.2 * dt
+        
+        # Contar enemigos que salen de pantalla (consideramos derrotados)
+        if (projectile[0][0] < scroll[0] - 50 or projectile[0][0] > scroll[0] + display.get_width() + 50 or
+            projectile[0][1] < scroll[1] - 50 or projectile[0][1] > scroll[1] + display.get_height() + 50):
+            if projectile[2] == 'enemy':
+                projectiles_removed += 1
+        
         if not map_transition:
             if projectile[2] == 'enemy':
                 if not death:
@@ -695,6 +1125,12 @@ while True:
                             particles.append(particles_m.Particle(r.center[0], r.center[1], 'light', vel, 0.4, 2 + random.randint(0, 20) / 10, custom_color=(255, 255, 255)))
                 display.blit(proj_img, (projectile[0][0] - scroll[0] - 2, projectile[0][1] - scroll[1] - 2))
                 particles_m.blit_center_add(display, particles_m.circle_surf(3 + 3 * (math.sin(projectile[3] * game_time * 0.15) + 3), (20, 6, 12)), (projectile[0][0] - scroll[0], projectile[0][1] - scroll[1]))
+    
+    # Agregar enemigos derrotados al historial
+    if projectiles_removed > 0:
+        for _ in range(projectiles_removed):
+            game_history.add_enemy_defeated()
+    
     if level_name != 'level_3':
         projectiles = projectiles[-300:]
     else:
@@ -715,7 +1151,6 @@ while True:
 
     # sparks
     for i, spark in sorted(enumerate(sparks), reverse=True):
-        # pos, rot, speed, scale, color
         advance(spark[0], spark[1], spark[2] * dt)
         spark[2] -= 0.2 * dt
         if spark[2] < 0:
@@ -749,10 +1184,12 @@ while True:
     for i, particle in sorted(enumerate(particles), reverse=True):
         alive = particle.update(0.1 * dt)
         particle.draw(display, scroll)
-        if particle.type == 'light':
-            particles_m.blit_center_add(display, particles_m.circle_surf(5 + particle.time_left * 0.5 * (math.sin(particle.random_constant * game_time * 0.01) + 3), (1 + particle.time_left * 0.2, 4 + particle.time_left * 0.4, 8 + particle.time_left * 0.6)), (particle.x - scroll[0], particle.y - scroll[1]))
-        if particle.type == 'red_light':
-            particles_m.blit_center_add(display, particles_m.circle_surf(5 + particle.time_left * 0.5 * (math.sin(particle.random_constant * game_time * 0.01) + 3), (8 + particle.time_left * 0.6, 1 + particle.time_left * 0.2, 4 + particle.time_left * 0.4)), (particle.x - scroll[0], particle.y - scroll[1]))
+        if particle.type == 'light' and particle.time_left > 0:
+            circle_size = max(1, 5 + particle.time_left * 0.5 * (math.sin(particle.random_constant * game_time * 0.01) + 3))
+            particles_m.blit_center_add(display, particles_m.circle_surf(circle_size, (1 + particle.time_left * 0.2, 4 + particle.time_left * 0.4, 8 + particle.time_left * 0.6)), (particle.x - scroll[0], particle.y - scroll[1]))
+        if particle.type == 'red_light' and particle.time_left > 0:
+            circle_size = max(1, 5 + particle.time_left * 0.5 * (math.sin(particle.random_constant * game_time * 0.01) + 3))
+            particles_m.blit_center_add(display, particles_m.circle_surf(circle_size, (8 + particle.time_left * 0.6, 1 + particle.time_left * 0.2, 4 + particle.time_left * 0.4)), (particle.x - scroll[0], particle.y - scroll[1]))
         if not alive:
             particles.pop(i)
 
@@ -850,5 +1287,6 @@ while True:
         else:
             black_surf.set_alpha((1 - (map_transition - 60) / 60) * 255)
         screen.blit(pygame.transform.scale(black_surf, screen.get_size()), (0, 0))
+    
     pygame.display.update()
     clock.tick(60)
