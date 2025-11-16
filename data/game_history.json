@@ -77,5 +77,71 @@
     "deaths": 1,
     "final_level": "level_1",
     "levels_completed": []
+  },
+  {
+    "player_name": "maria",
+    "date": "2025-11-16 17:16:49",
+    "duration_seconds": 17,
+    "duration_formatted": "17s",
+    "enemies_defeated": 0,
+    "data_collected": 0,
+    "deaths": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "maria",
+    "date": "2025-11-16 17:17:34",
+    "duration_seconds": 25,
+    "duration_formatted": "25s",
+    "enemies_defeated": 0,
+    "data_collected": 0,
+    "deaths": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "maria",
+    "date": "2025-11-16 17:18:03",
+    "duration_seconds": 6,
+    "duration_formatted": "6s",
+    "enemies_defeated": 0,
+    "data_collected": 0,
+    "deaths": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "mm",
+    "date": "2025-11-16 17:19:49",
+    "duration_seconds": 2,
+    "duration_formatted": "2s",
+    "enemies_defeated": 0,
+    "data_collected": 0,
+    "deaths": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "maria",
+    "date": "2025-11-16 18:15:54",
+    "duration_seconds": 10,
+    "duration_formatted": "10s",
+    "threats_neutralized": 0,
+    "firewalls_collected": 0,
+    "breaches": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "kaki",
+    "date": "2025-11-16 18:17:47",
+    "duration_seconds": 103,
+    "duration_formatted": "1m 43s",
+    "threats_neutralized": 94431,
+    "firewalls_collected": 3,
+    "breaches": 6,
+    "final_level": "level_1",
+    "levels_completed": []
   }
 ]

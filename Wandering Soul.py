@@ -21,23 +21,46 @@ TILE_SIZE = 12
 
 pygame.mixer.pre_init(44100, -16, 2, 512)
 pygame.init()
-pygame.display.set_caption('NetGuardian')
+pygame.display.set_caption('NetGuardian - The Last Firewall')
 screen = pygame.display.set_mode((900, 600), pygame.SCALED + pygame.RESIZABLE)
 pygame.mouse.set_visible(True)
 display = pygame.Surface((300, 200))
 clock = pygame.time.Clock()
 
-# ============= SISTEMA DE HISTORIAL =============
+# ============= COLORES CIBERSEGURIDAD =============
+CYBER_COLORS = {
+    'primary_green': (0, 255, 100),
+    'primary_cyan': (0, 200, 255),
+    'safe': (0, 255, 0),
+    'warning': (255, 200, 0),
+    'danger': (255, 50, 50),
+    'bg_dark': (10, 10, 25),
+}
 
+# ============= MENSAJES CIBERSEGURIDAD =============
+CYBER_MESSAGES = {
+    'need_firewall': 'Necesito mas poder de procesamiento!',
+    'exit_up': 'El nodo seguro esta arriba...',
+    'remote_scan': 'Puedo escanear con mi sonda.',
+    'trap': 'Esto parece una trampa...',
+    'survive': 'Solo debo sobrevivir.',
+    'clear': 'Red estabilizada.',
+    'threat': 'Amenaza critica detectada...',
+    'more_attacks': 'Mas patrones de ataque?',
+    'silence': '...',
+    'move_on': 'Debo seguir adelante...',
+}
+
+# ============= SISTEMA DE HISTORIAL =============
 class GameHistory:
     def __init__(self):
         self.history_file = 'data/game_history.json'
         self.current_session = {
             'player_name': '',
             'start_time': 0,
-            'enemies_defeated': 0,
-            'mana_collected': 0,
-            'deaths': 0
+            'threats_neutralized': 0,
+            'firewalls_collected': 0,
+            'breaches': 0
         }
         self.load_history()
     
@@ -61,9 +84,9 @@ class GameHistory:
         self.current_session = {
             'player_name': player_name,
             'start_time': datetime.datetime.now().isoformat(),
-            'enemies_defeated': 0,
-            'mana_collected': 0,
-            'deaths': 0,
+            'threats_neutralized': 0,
+            'firewalls_collected': 0,
+            'breaches': 0,
             'levels_completed': []
         }
     
@@ -77,9 +100,9 @@ class GameHistory:
             'date': end_time.strftime('%Y-%m-%d %H:%M:%S'),
             'duration_seconds': int(duration),
             'duration_formatted': self.format_duration(duration),
-            'enemies_defeated': self.current_session['enemies_defeated'],
-            'mana_collected': self.current_session['mana_collected'],
-            'deaths': self.current_session['deaths'],
+            'threats_neutralized': self.current_session['threats_neutralized'],
+            'firewalls_collected': self.current_session['firewalls_collected'],
+            'breaches': self.current_session['breaches'],
             'final_level': final_level,
             'levels_completed': self.current_session['levels_completed']
         }
@@ -98,14 +121,14 @@ class GameHistory:
         else:
             return f"{secs}s"
     
-    def add_enemy_defeated(self):
-        self.current_session['enemies_defeated'] += 1
+    def add_threat_neutralized(self):
+        self.current_session['threats_neutralized'] += 1
     
-    def add_mana_collected(self):
-        self.current_session['mana_collected'] += 1
+    def add_firewall_collected(self):
+        self.current_session['firewalls_collected'] += 1
     
-    def add_death(self):
-        self.current_session['deaths'] += 1
+    def add_breach(self):
+        self.current_session['breaches'] += 1
     
     def add_level_completed(self, level_name):
         if level_name not in self.current_session['levels_completed']:
@@ -113,16 +136,15 @@ class GameHistory:
 
 
 # ============= SISTEMA DE MENÚ =============
-
 class Button:
     def __init__(self, x, y, width, height, text, font):
         self.rect = pygame.Rect(x, y, width, height)
         self.text = text
         self.font = font
         self.hovered = False
-        self.color_normal = (40, 40, 80)
-        self.color_hover = (60, 60, 120)
-        self.color_border = (100, 150, 255)
+        self.color_normal = (20, 40, 60)
+        self.color_hover = (30, 60, 90)
+        self.color_border = CYBER_COLORS['primary_cyan']
     
     def draw(self, surface):
         color = self.color_hover if self.hovered else self.color_normal
@@ -201,23 +223,23 @@ class InputBox:
                 self.active = False
             elif len(self.text) < self.max_length:
                 char = event.unicode
-                if char.isprintable() and char.isalnum() or char == ' ':
+                if char.isprintable() and (char.isalnum() or char == ' '):
                     self.text += char
     
     def draw(self, surface, game_time):
-        color = (60, 60, 120) if self.active else (40, 40, 80)
+        color = (30, 60, 90) if self.active else (20, 40, 60)
         pygame.draw.rect(surface, color, self.rect)
-        pygame.draw.rect(surface, (100, 150, 255), self.rect, 2)
+        pygame.draw.rect(surface, CYBER_COLORS['primary_cyan'], self.rect, 2)
         
-        display_text = self.text if self.text else 'Nombre...'
-        text_color = (255, 255, 255) if self.text else (150, 150, 150)
+        display_text = self.text if self.text else 'Usuario...'
+        text_color = CYBER_COLORS['primary_green'] if self.text else (100, 100, 100)
         
         temp_font = text.Font('data/fonts/small_font.png', text_color)
         temp_font.render(display_text, surface, (self.rect.x + 5, self.rect.y + 5))
         
         if self.active and game_time % 30 < 15:
             cursor_x = self.rect.x + 5 + self.font.width(self.text)
-            pygame.draw.rect(surface, (255, 255, 255), 
+            pygame.draw.rect(surface, CYBER_COLORS['primary_green'], 
                            (cursor_x, self.rect.y + 5, 2, 10))
 
 
@@ -247,48 +269,82 @@ class GameMenu:
         
         self.volume_control = VolumeControl(display.get_width() - 80, 10, font)
         self.name_input = InputBox(center_x - 70, 100, 140, 20, font)
-        self.confirm_button = Button(center_x - 40, 130, 80, 20, 'CONTINUAR', font)
+        self.confirm_button = Button(center_x - 40, 130, 80, 20, 'CONECTAR', font)
         self.back_button = Button(10, display.get_height() - 30, 60, 20, 'VOLVER', font)
         
         self.history_scroll = 0
         self.max_history_display = 8
         self.clicked_last_frame = False
     
-    def draw_main_menu(self, game_time):
-        self.display.fill((20, 19, 39))
+    def render_cyber_background(self, game_time):
+        self.display.fill(CYBER_COLORS['bg_dark'])
         
-        title = 'NETGUARDIAN - THE LAST FIREWALL'
+        grid_color = (0, 50, 80)
+        for x in range(0, self.display.get_width(), 20):
+            alpha = abs(math.sin(game_time * 0.01 + x * 0.1))
+            if alpha > 0.5:
+                pygame.draw.line(self.display, grid_color, (x, 0), (x, self.display.get_height()), 1)
+        
+        for y in range(0, self.display.get_height(), 20):
+            alpha = abs(math.sin(game_time * 0.01 + y * 0.1))
+            if alpha > 0.5:
+                pygame.draw.line(self.display, grid_color, (0, y), (self.display.get_width(), y), 1)
+    
+    def draw_main_menu(self, game_time):
+        self.render_cyber_background(game_time)
+        
+        title = 'NETGUARDIAN'
         title_x = self.display.get_width() // 2 - self.font.width(title) // 2
         
-        black_font = text.Font('data/fonts/small_font.png', (0, 0, 1))
-        blue_font = text.Font('data/fonts/small_font.png', (0, 152, 219))
+        glitch_offset = random.randint(-1, 1) if game_time % 60 < 2 else 0
         
-        black_font.render(title, self.display, (title_x + 1, 41))
-        blue_font.render(title, self.display, (title_x, 40))
-        self.font.render(title, self.display, (title_x, 39))
+        black_font = text.Font('data/fonts/small_font.png', (0, 0, 1))
+        cyan_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_cyan'])
+        green_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_green'])
+        
+        black_font.render(title, self.display, (title_x + 1, 31))
+        cyan_font.render(title, self.display, (title_x + glitch_offset, 30))
+        green_font.render(title, self.display, (title_x, 29))
+        
+        subtitle = 'THE LAST FIREWALL'
+        sub_x = self.display.get_width() // 2 - self.font.width(subtitle) // 2
+        small_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_cyan'])
+        small_font.render(subtitle, self.display, (sub_x, 45))
         
         for i in range(3):
-            offset_x = math.sin(game_time / 20 + i * math.pi * 2 / 3) * 3
-            offset_y = math.cos(game_time / 15 + i * math.pi * 2 / 3) * 2
-            render_mana([title_x + i * 50 + offset_x, 60 + offset_y], 
-                       size=[1, 2], color1=(255, 255, 255), color2=(12, 230, 242))
+            x = title_x + i * 60 + 10
+            y = 60 + math.sin(game_time * 0.1 + i) * 3
+            self.render_firewall_icon([x, y], game_time + i * 20)
         
         self.start_button.draw(self.display)
         self.history_button.draw(self.display)
         self.exit_button.draw(self.display)
         self.volume_control.draw(self.display)
         
-        instructions = 'Flechas para mover'
+        instructions = '> Flechas para navegar'
         inst_x = self.display.get_width() // 2 - self.font.width(instructions) // 2
-        small_font = text.Font('data/fonts/small_font.png', (150, 150, 150))
-        small_font.render(instructions, self.display, (inst_x, self.display.get_height() - 20))
+        inst_font = text.Font('data/fonts/small_font.png', (100, 150, 100))
+        inst_font.render(instructions, self.display, (inst_x, self.display.get_height() - 20))
+    
+    def render_firewall_icon(self, pos, offset):
+        points = []
+        for i in range(6):
+            angle = offset / 30 + i / 6 * math.pi * 2
+            radius = 4 + math.sin(offset / 10) * 0.5
+            x = pos[0] + math.cos(angle) * radius
+            y = pos[1] + math.sin(angle) * radius
+            points.append([x, y])
+        
+        pygame.draw.polygon(self.display, CYBER_COLORS['primary_green'], points, 1)
+        pygame.draw.circle(self.display, CYBER_COLORS['primary_cyan'], (int(pos[0]), int(pos[1])), 2, 1)
     
     def draw_name_input(self, game_time):
-        self.display.fill((20, 19, 39))
+        self.render_cyber_background(game_time)
         
-        prompt = 'Ingresa tu nombre:'
+        prompt = 'ID DE USUARIO:'
         prompt_x = self.display.get_width() // 2 - self.font.width(prompt) // 2
-        self.font.render(prompt, self.display, (prompt_x, 70))
+        cyan_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_cyan'])
+        cyan_font.render(prompt, self.display, (prompt_x, 70))
         
         self.name_input.draw(self.display, game_time)
         
@@ -296,19 +352,21 @@ class GameMenu:
             self.confirm_button.draw(self.display)
     
     def draw_history(self):
-        self.display.fill((20, 19, 39))
+        self.render_cyber_background(0)
         
-        title = 'HISTORIAL DE PARTIDAS'
+        title = 'HISTORIAL DE SESIONES'
         title_x = self.display.get_width() // 2 - self.font.width(title) // 2
-        self.font.render(title, self.display, (title_x, 10))
+        cyan_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_cyan'])
+        cyan_font.render(title, self.display, (title_x, 10))
         
-        pygame.draw.line(self.display, (100, 150, 255), 
+        pygame.draw.line(self.display, CYBER_COLORS['primary_cyan'], 
                         (10, 25), (self.display.get_width() - 10, 25), 1)
         
         if not self.history.history:
-            no_data = 'No hay partidas'
+            no_data = 'SIN REGISTROS'
             no_data_x = self.display.get_width() // 2 - self.font.width(no_data) // 2
-            self.font.render(no_data, self.display, (no_data_x, 100))
+            green_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_green'])
+            green_font.render(no_data, self.display, (no_data_x, 100))
         else:
             y_offset = 35
             visible_history = self.history.history[self.history_scroll:
@@ -316,20 +374,20 @@ class GameMenu:
             
             for i, session in enumerate(visible_history):
                 if i % 2 == 0:
-                    pygame.draw.rect(self.display, (30, 29, 49), 
+                    pygame.draw.rect(self.display, (15, 25, 35), 
                                    (5, y_offset - 2, self.display.get_width() - 10, 18))
                 
                 player_name = session['player_name'][:12]
                 duration = session['duration_formatted']
-                enemies = str(session['enemies_defeated'])
+                threats = str(session['threats_neutralized'])
                 
-                small_font = text.Font('data/fonts/small_font.png', (200, 200, 200))
+                data_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_green'])
                 
-                small_font.render(f'{player_name}', self.display, (10, y_offset))
-                small_font.render(f'{duration}', self.display, (100, y_offset))
-                small_font.render(f'E:{enemies}', self.display, (170, y_offset))
+                data_font.render(f'{player_name}', self.display, (10, y_offset))
+                data_font.render(f'{duration}', self.display, (100, y_offset))
+                data_font.render(f'T:{threats}', self.display, (170, y_offset))
                 
-                date_font = text.Font('data/fonts/small_font.png', (120, 120, 120))
+                date_font = text.Font('data/fonts/small_font.png', (80, 120, 120))
                 date_font.render(session['date'][11:16], self.display, (220, y_offset))
                 
                 y_offset += 18
@@ -337,7 +395,7 @@ class GameMenu:
             if len(self.history.history) > self.max_history_display:
                 scroll_text = f'{self.history_scroll + 1}-{min(self.history_scroll + self.max_history_display, len(self.history.history))} / {len(self.history.history)}'
                 scroll_x = self.display.get_width() // 2 - self.font.width(scroll_text) // 2
-                small_font = text.Font('data/fonts/small_font.png', (100, 100, 100))
+                small_font = text.Font('data/fonts/small_font.png', (80, 100, 100))
                 small_font.render(scroll_text, self.display, (scroll_x, y_offset + 5))
         
         self.back_button.draw(self.display)
@@ -374,7 +432,7 @@ class GameMenu:
             self.confirm_button.check_hover(mouse_pos)
             
             if self.name_input.text and self.confirm_button.check_click(mouse_pos, single_click):
-                player_name = self.name_input.text or "Jugador"
+                player_name = self.name_input.text or "Anonimo"
                 self.history.start_session(player_name)
                 self.name_input.text = ''
                 return 'start_game'
@@ -400,8 +458,139 @@ class GameMenu:
         return None
 
 
-# ============= JUEGO ORIGINAL =============
+# ============= FUNCIONES DE RENDERIZADO CYBER =============
+def render_firewall(loc, size=[2, 3], color1=None, color2=None):
+    global game_time
+    if color1 is None:
+        color1 = CYBER_COLORS['primary_green']
+    if color2 is None:
+        color2 = CYBER_COLORS['primary_cyan']
+    
+    points = []
+    for i in range(6):
+        angle = game_time / 30 + i / 6 * math.pi * 2
+        radius = (math.sin((game_time * math.sqrt(i + 1)) / 20) * size[0] + size[1])
+        x = loc[0] + math.cos(angle) * radius
+        y = loc[1] + math.sin(angle) * radius
+        points.append([x, y])
+    
+    pygame.draw.polygon(display, color1, points)
+    pygame.draw.polygon(display, color2, points, 1)
+    pygame.draw.circle(display, color2, (int(loc[0]), int(loc[1])), 2, 1)
 
+
+def render_threat_warning(projectile, scroll, game_time):
+    pos = [projectile[0][0] - scroll[0], projectile[0][1] - scroll[1]]
+    
+    size = 4
+    warning_points = [
+        [pos[0], pos[1] - size],
+        [pos[0] - size, pos[1] + size],
+        [pos[0] + size, pos[1] + size]
+    ]
+    
+    threat_types = [
+        CYBER_COLORS['danger'],
+        CYBER_COLORS['warning'],
+        (200, 0, 200),
+        (255, 100, 0)
+    ]
+    color = threat_types[int(game_time / 30) % len(threat_types)]
+    
+    pygame.draw.polygon(display, color, warning_points)
+    pygame.draw.polygon(display, (255, 255, 255), warning_points, 1)
+    pygame.draw.circle(display, (255, 255, 255), (int(pos[0]), int(pos[1])), 1)
+
+
+def render_server_boss(eye_base, scroll, eye_height, game_time):
+    server_pos = [eye_base[0] - scroll[0], eye_base[1] - scroll[1]]
+    
+    server_width = 40
+    server_height = int(eye_height * 1.5)
+    
+    server_rect = pygame.Rect(
+        server_pos[0] - server_width // 2,
+        server_pos[1] - server_height // 2,
+        server_width,
+        server_height
+    )
+    
+    pygame.draw.rect(display, (50, 50, 80), server_rect)
+    pygame.draw.rect(display, CYBER_COLORS['danger'], server_rect, 2)
+    
+    for i in range(4):
+        if (game_time + i * 15) % 30 < 15:
+            led_color = CYBER_COLORS['danger']
+        else:
+            led_color = (100, 0, 0)
+        
+        led_x = server_pos[0] - 15 + i * 10
+        led_y = server_pos[1]
+        pygame.draw.circle(display, led_color, (int(led_x), int(led_y)), 2)
+    
+    danger_x = server_pos[0]
+    danger_y = server_pos[1] - 10
+    pygame.draw.line(display, CYBER_COLORS['warning'], 
+                    (danger_x - 5, danger_y - 5), 
+                    (danger_x + 5, danger_y + 5), 2)
+    pygame.draw.line(display, CYBER_COLORS['warning'], 
+                    (danger_x + 5, danger_y - 5), 
+                    (danger_x - 5, danger_y + 5), 2)
+
+
+def render_secure_port(door_pos, scroll, game_time):
+    pos = [door_pos[0] - scroll[0], door_pos[1] - scroll[1]]
+    
+    firewall_width = 12
+    firewall_height = 18
+    
+    glow_intensity = abs(math.sin(game_time * 0.1))
+    glow_color = (0, int(100 + glow_intensity * 155), 0)
+    
+    pygame.draw.rect(display, glow_color, 
+                    (pos[0], pos[1], firewall_width, firewall_height))
+    pygame.draw.rect(display, CYBER_COLORS['safe'], 
+                    (pos[0], pos[1], firewall_width, firewall_height), 2)
+    
+    for i in range(3):
+        y = pos[1] + i * 6
+        pygame.draw.line(display, CYBER_COLORS['primary_cyan'], 
+                        (pos[0], y), (pos[0] + firewall_width, y), 1)
+    
+    lock_x = pos[0] + firewall_width // 2
+    lock_y = pos[1] + firewall_height // 2
+    pygame.draw.circle(display, (255, 255, 255), (int(lock_x), int(lock_y)), 3, 1)
+    pygame.draw.rect(display, (255, 255, 255), 
+                    (lock_x - 2, lock_y, 4, 4), 1)
+
+
+def render_cyber_hud(player_firewall, level_time):
+    hud_color = CYBER_COLORS['primary_cyan']
+    
+    pygame.draw.line(display, hud_color, (0, 15), (display.get_width(), 15), 1)
+    
+    time_text = f"TIEMPO: {level_time // 60}s"
+    time_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_green'])
+    time_font.render(time_text, display, (display.get_width() - 80, 5))
+    
+    firewall_bar_width = 50
+    firewall_bar_height = 6
+    firewall_x = 10
+    firewall_y = 20
+    
+    pygame.draw.rect(display, (30, 30, 30), 
+                    (firewall_x, firewall_y, firewall_bar_width, firewall_bar_height))
+    
+    filled_width = int((player_firewall / 5) * firewall_bar_width)
+    bar_color = CYBER_COLORS['safe'] if player_firewall > 2 else CYBER_COLORS['warning']
+    pygame.draw.rect(display, bar_color, 
+                    (firewall_x, firewall_y, filled_width, firewall_bar_height))
+    
+    pygame.draw.rect(display, hud_color, 
+                    (firewall_x, firewall_y, firewall_bar_width, firewall_bar_height), 1)
+
+
+# ============= JUEGO ORIGINAL CON TEMA CYBER =============
 spritesheets, spritesheets_data = spritesheet_loader.load_spritesheets('data/images/tilesets/')
 level_map = tile_map.TileMap((TILE_SIZE, TILE_SIZE), (300, 200))
 level_name = 'level_1'
@@ -434,9 +623,8 @@ sounds = {k.split('.')[0]: pygame.mixer.Sound('data/sfx/' + k) for k in os.listd
 sounds['eye_shoot'].set_volume(0.7)
 sounds['jump'].set_volume(0.3)
 
-
 def reload_level(restart_audio=True):
-    global player, projectiles, particles, scroll_target, events, soul_mode, level_time, player_mana, level_map, player_message, zoom, death, next_level, door, ready_to_exit
+    global player, projectiles, particles, scroll_target, events, soul_mode, level_time, player_mana, level_map, player_message, zoom, death, next_level, door, ready_to_exit, tutorial, tutorial_2, true_scroll
     level_map.load_map(level_name + '.json')
     player.pos = level_spawns[level_name].copy()
     soul.pos = level_spawns[level_name].copy()
@@ -459,7 +647,6 @@ def reload_level(restart_audio=True):
     ready_to_exit = False
     player_message = [0, '', '']
     if level_name == 'level_1':
-        global tutorial, tutorial_2
         tutorial = 0
         tutorial_2 = -1
 
@@ -482,21 +669,13 @@ def advance(pos, rot, amt):
     pos[1] += math.sin(rot) * amt
     return pos
 
-def render_mana(loc, size=[2, 3], color1=(255, 255, 255), color2=(12, 230, 242)):
-    global game_time
-    points = []
-    for i in range(8):
-        points.append(advance(loc.copy(), game_time / 30 + i / 8 * math.pi * 2, (math.sin((game_time * math.sqrt(i)) / 20) * size[0] + size[1])))
-    pygame.draw.polygon(display, color1, points)
-    pygame.draw.polygon(display, color2, points, 1)
-
 def particle_burst(loc, amt):
     global particles
     for i in range(amt):
         angle = random.randint(1, 360)
         speed = random.randint(20, 80) / 10
         vel = [math.cos(angle) * speed, math.sin(angle) * speed]
-        particles.append(particles_m.Particle(loc[0], loc[1], 'light', vel, 0.8, 2 + random.randint(0, 20) / 10, custom_color=(255, 255, 255)))
+        particles.append(particles_m.Particle(loc[0], loc[1], 'light', vel, 0.8, 2 + random.randint(0, 20) / 10, custom_color=CYBER_COLORS['primary_cyan']))
 
 animations = anim_loader.AnimationManager()
 
@@ -512,9 +691,9 @@ particles = []
 
 sparks = []
 
-font = text.Font('data/fonts/small_font.png', (255, 255, 255))
-blue_font = text.Font('data/fonts/small_font.png', (0, 152, 219))
-red_font = text.Font('data/fonts/small_font.png', (244, 89, 120))
+font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_green'])
+blue_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_cyan'])
+red_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['danger'])
 black_font = text.Font('data/fonts/small_font.png', (0, 0, 1))
 
 player = Entity(animations, level_spawns[level_name], (7, 13), 'player')
@@ -574,7 +753,7 @@ pygame.mixer.music.load('data/music_1.wav')
 pygame.mixer.music.play(-1)
 
 while True:
-    # ============= MENÚ =============
+    # MENÚ
     if game_state == 'menu':
         current_events = pygame.event.get()
         for event in current_events:
@@ -601,8 +780,8 @@ while True:
         game_time += 1
         continue
     
-    # ============= JUEGO =============
-    display.fill((20, 19, 39))
+    # JUEGO
+    display.fill(CYBER_COLORS['bg_dark'])
 
     game_time += 1
     level_time += 1
@@ -624,7 +803,16 @@ while True:
         if map_transition > 120:
             map_transition = 0
 
-    # background
+    # background con grid cyber
+    grid_color = (0, 50, 80)
+    for x in range(0, display.get_width(), 20):
+        if abs(math.sin(game_time * 0.01 + x * 0.1)) > 0.5:
+            pygame.draw.line(display, grid_color, (x, 0), (x, display.get_height()), 1)
+    
+    for y in range(0, display.get_height(), 20):
+        if abs(math.sin(game_time * 0.01 + y * 0.1)) > 0.5:
+            pygame.draw.line(display, grid_color, (0, y), (display.get_width(), y), 1)
+
     b_points = [[0, 16]]
     b_points += [[display.get_width() / 30 * (i + 1) + math.sin((game_time + i * 120) / 4) * 8, 16 + math.sin((game_time + i * 10) / 10) * 4] for i in range(29)]
     b_points += [[display.get_width(), 16], [display.get_width(), 0], [0, 0]]
@@ -633,7 +821,7 @@ while True:
     b2_points += [[display.get_width(), 16], [display.get_width(), 0], [0, 0]]
     b2_points = [[display.get_width() - p[0], p[1] * 3] for p in b2_points]
     back_surf = pygame.Surface((display.get_width(), 72))
-    pygame.draw.polygon(back_surf, (15, 10, 24), b2_points)
+    pygame.draw.polygon(back_surf, (10, 15, 30), b2_points)
     back_surf.set_colorkey((0, 0, 0))
     display.blit(back_surf, (0, 0))
     display.blit(pygame.transform.flip(back_surf, False, True), (0, display.get_height() - 72))
@@ -661,11 +849,11 @@ while True:
         scroll[0] = max(level_map.left * TILE_SIZE + TILE_SIZE * 3 - zoom_offset[0], min(level_map.right * TILE_SIZE - display.get_width() - TILE_SIZE * 2 + zoom_offset[0], scroll[0]))
         scroll[1] = max(level_map.top * TILE_SIZE + TILE_SIZE * 3 - zoom_offset[1], min(level_map.bottom * TILE_SIZE - display.get_height() - TILE_SIZE * 4 + zoom_offset[1], scroll[1]))
 
-    # door
+    # door - ahora es puerto seguro
     if door:
-        display.blit(door_img, (door[0] - scroll[0], door[1] - scroll[1]))
+        render_secure_port(door, scroll, game_time)
         if random.randint(1, 7) == 1:
-            particles.append(particles_m.Particle(door[0] + 6, door[1] + 9, 'red_light', [random.randint(0, 10) / 10 - 0.5, random.randint(0, 10) / 10 - 2], 0.1, 3.5 + random.randint(0, 20) / 10, custom_color=(255, 255, 255)))
+            particles.append(particles_m.Particle(door[0] + 6, door[1] + 9, 'light', [random.randint(0, 10) / 10 - 0.5, random.randint(0, 10) / 10 - 2], 0.1, 3.5 + random.randint(0, 20) / 10, custom_color=CYBER_COLORS['safe']))
         if player.get_distance([door[0] + 6, door[1] + 9]) < 5:
             if map_transition == 0:
                 pygame.mixer.music.fadeout(500)
@@ -691,25 +879,25 @@ while True:
                 collideables.append(pygame.Rect(tile[0][0], tile[0][1], TILE_SIZE, TILE_SIZE))
             if tile[1][0] == 'torches':
                 if random.randint(1, 6) == 1:
-                    particles.append(particles_m.Particle(tile[0][0] + 6, tile[0][1] + 4, 'light', [random.randint(0, 10) / 10 - 0.5, random.randint(0, 10) / 10 - 2], 0.1, 3 + random.randint(0, 20) / 10, custom_color=(255, 255, 255)))
+                    particles.append(particles_m.Particle(tile[0][0] + 6, tile[0][1] + 4, 'light', [random.randint(0, 10) / 10 - 0.5, random.randint(0, 10) / 10 - 2], 0.1, 3 + random.randint(0, 20) / 10, custom_color=CYBER_COLORS['primary_cyan']))
                 torch_sin = math.sin((tile[0][1] % 100 + 200) / 300 * game_time * 0.01)
-                particles_m.blit_center_add(display, particles_m.circle_surf(15 + (torch_sin + 3) * 8.5, (4 + (torch_sin + 4) * 0.3, 8 + (torch_sin + 4) * 0.5, 18 + (torch_sin + 4) * 0.9)), (tile[0][0] - scroll[0] + 6, tile[0][1] - scroll[1] + 4))
-                particles_m.blit_center_add(display, particles_m.circle_surf(9 + (torch_sin + 3) * 4, (4 + (torch_sin * 1.3 + 4) * 0.3, 8 + (torch_sin + 4) * 0.5, 18 + (torch_sin + 4) * 0.9)), (tile[0][0] - scroll[0] + 6, tile[0][1] - scroll[1] + 4))
+                particles_m.blit_center_add(display, particles_m.circle_surf(15 + (torch_sin + 3) * 8.5, (0, 4 + (torch_sin + 4) * 0.5, 8 + (torch_sin + 4) * 0.9)), (tile[0][0] - scroll[0] + 6, tile[0][1] - scroll[1] + 4))
+                particles_m.blit_center_add(display, particles_m.circle_surf(9 + (torch_sin + 3) * 4, (0, 8 + (torch_sin + 4) * 0.5, 12 + (torch_sin + 4) * 0.9)), (tile[0][0] - scroll[0] + 6, tile[0][1] - scroll[1] + 4))
             if (tile[1][0] == 'decorations') and (tile[1][1] == 0):
                 if random.randint(1, 2) == 1:
                     p_offset = random.choice([[-8, 1], [8, 1], [4, 4], [-4, 4]])
-                    particles.append(particles_m.Particle(tile[0][0] + TILE_SIZE + p_offset[0], tile[0][1] + TILE_SIZE * 1.5 + p_offset[1], 'light', [random.randint(0, 10) / 10 - 0.5, random.randint(0, 10) / 10 - 2], 0.1, 4 + random.randint(0, 20) / 10, custom_color=(255, 255, 255)))
+                    particles.append(particles_m.Particle(tile[0][0] + TILE_SIZE + p_offset[0], tile[0][1] + TILE_SIZE * 1.5 + p_offset[1], 'light', [random.randint(0, 10) / 10 - 0.5, random.randint(0, 10) / 10 - 2], 0.1, 4 + random.randint(0, 20) / 10, custom_color=CYBER_COLORS['primary_cyan']))
                 torch_sin = math.sin((tile[0][1] % 100 + 200) / 300 * game_time * 0.01)
-                particles_m.blit_center_add(display, particles_m.circle_surf(15 + (torch_sin + 3) * 8.5, (4 + (torch_sin + 4) * 0.4, 8 + (torch_sin + 4) * 0.7, 18 + (torch_sin + 4) * 1.3)), (tile[0][0] - scroll[0] + TILE_SIZE, tile[0][1] - scroll[1] + TILE_SIZE * 1.5))
-                particles_m.blit_center_add(display, particles_m.circle_surf(9 + (torch_sin + 3) * 4, (4 + (torch_sin * 1.3 + 4) * 0.4, 8 + (torch_sin + 4) * 0.7, 18 + (torch_sin + 4) * 1.3)), (tile[0][0] - scroll[0] + TILE_SIZE, tile[0][1] - scroll[1]  + TILE_SIZE * 1.5))
+                particles_m.blit_center_add(display, particles_m.circle_surf(15 + (torch_sin + 3) * 8.5, (0, 4 + (torch_sin + 4) * 0.7, 8 + (torch_sin + 4) * 1.3)), (tile[0][0] - scroll[0] + TILE_SIZE, tile[0][1] - scroll[1] + TILE_SIZE * 1.5))
+                particles_m.blit_center_add(display, particles_m.circle_surf(9 + (torch_sin + 3) * 4, (0, 8 + (torch_sin + 4) * 0.7, 12 + (torch_sin + 4) * 1.3)), (tile[0][0] - scroll[0] + TILE_SIZE, tile[0][1] - scroll[1]  + TILE_SIZE * 1.5))
             if tile[1][0] != 'mana':
                 img = spritesheet_loader.get_img(spritesheets, tile[1])
                 display.blit(img, (math.floor(tile[0][0] - scroll[0] + offset[0]), math.floor(tile[0][1] - scroll[1] + offset[1])))
             else:
-                render_mana([tile[0][0] + 6 - scroll[0], tile[0][1] + 6 - scroll[1]])
+                render_firewall([tile[0][0] + 6 - scroll[0], tile[0][1] + 6 - scroll[1]])
                 torch_sin = math.sin((tile[0][1] % 100 + 200) / 300 * game_time * 0.01)
-                particles_m.blit_center_add(display, particles_m.circle_surf(15 + (torch_sin + 3) * 8.5, (4 + (torch_sin + 4) * 0.3, 8 + (torch_sin + 4) * 0.5, 18 + (torch_sin + 4) * 0.9)), (tile[0][0] - scroll[0] + 6, tile[0][1] - scroll[1] + 4))
-                particles_m.blit_center_add(display, particles_m.circle_surf(9 + (torch_sin + 3) * 4, (4 + (torch_sin * 1.3 + 4) * 0.3, 8 + (torch_sin + 4) * 0.5, 18 + (torch_sin + 4) * 0.9)), (tile[0][0] - scroll[0] + 6, tile[0][1] - scroll[1] + 4))
+                particles_m.blit_center_add(display, particles_m.circle_surf(15 + (torch_sin + 3) * 8.5, (0, 4 + (torch_sin + 4) * 0.5, 8 + (torch_sin + 4) * 0.9)), (tile[0][0] - scroll[0] + 6, tile[0][1] - scroll[1] + 4))
+                particles_m.blit_center_add(display, particles_m.circle_surf(9 + (torch_sin + 3) * 4, (0, 8 + (torch_sin + 4) * 0.5, 12 + (torch_sin + 4) * 0.9)), (tile[0][0] - scroll[0] + 6, tile[0][1] - scroll[1] + 4))
 
     # player
     player.update(1 / 60 * dt)
@@ -729,12 +917,14 @@ while True:
         player.rotation -= 10
     if death == 2:
         player_velocity[1] = -7
-        game_history.add_death()
+        game_history.add_breach()
     movement[0] *= min(dt, 3)
     movement[1] *= dt
     movement[1] = min(8, movement[1])
     if not map_transition:
         collisions = player.move(movement, collideables)
+    else:
+        collisions = {'top': False, 'bottom': False, 'left': False, 'right': False}
     if collisions['top'] or collisions['bottom']:
         player_velocity[1] = 0
     if collisions['bottom']:
@@ -785,10 +975,10 @@ while True:
         if soul.pos[1] > scroll[1] + display.get_height():
             soul.pos[1] = scroll[1] + display.get_height()
         if random.randint(1, 3) == 1:
-            particles.append(particles_m.Particle(soul.pos[0] + 3, soul.pos[1] + 4, 'light', [random.randint(0, 10) / 10 - 0.5, random.randint(0, 10) / 10 + 1], 0.2, 3 + random.randint(0, 20) / 10, custom_color=(255, 255, 255)))
+            particles.append(particles_m.Particle(soul.pos[0] + 3, soul.pos[1] + 4, 'light', [random.randint(0, 10) / 10 - 0.5, random.randint(0, 10) / 10 + 1], 0.2, 3 + random.randint(0, 20) / 10, custom_color=CYBER_COLORS['primary_cyan']))
         torch_sin = math.sin((soul.center[1] % 100 + 200) / 300 * game_time * 0.1)
-        particles_m.blit_center_add(display, particles_m.circle_surf(7 + (torch_sin + 3) * 3, (4 + (torch_sin + 4) * 0.3, 8 + (torch_sin + 4) * 0.5, 18 + (torch_sin + 4) * 0.9)), (soul.center[0] - 1 - scroll[0], soul.center[1] - 4 - scroll[1]))
-        particles_m.blit_center_add(display, particles_m.circle_surf(5 + (torch_sin + 3) * 2, (4 + (torch_sin * 1.3 + 4) * 0.3, 8 + (torch_sin + 4) * 0.5, 18 + (torch_sin + 4) * 0.9)), (soul.center[0] - 1 - scroll[0], soul.center[1] - 4 - scroll[1]))
+        particles_m.blit_center_add(display, particles_m.circle_surf(7 + (torch_sin + 3) * 3, (0, 4 + (torch_sin + 4) * 0.5, 18 + (torch_sin + 4) * 0.9)), (soul.center[0] - 1 - scroll[0], soul.center[1] - 4 - scroll[1]))
+        particles_m.blit_center_add(display, particles_m.circle_surf(5 + (torch_sin + 3) * 2, (0, 8 + (torch_sin + 4) * 0.5, 18 + (torch_sin + 4) * 0.9)), (soul.center[0] - 1 - scroll[0], soul.center[1] - 4 - scroll[1]))
         if tutorial_2 == 0:
             tutorial_2 = 1
     else:
@@ -803,13 +993,13 @@ while True:
                 sounds['mana_1'].play()
                 sounds['mana_2'].play()
                 player_mana += 1
-                game_history.add_mana_collected()
+                game_history.add_firewall_collected()
                 rm = layer
                 for i in range(2):
-                    sparks.append([tile_center.copy(), math.pi / 2 + math.pi * i, 10, 6, (255, 255, 255)])
-                    sparks.append([tile_center.copy(), math.pi * i, 6, 3, (255, 255, 255)])
+                    sparks.append([tile_center.copy(), math.pi / 2 + math.pi * i, 10, 6, CYBER_COLORS['primary_green']])
+                    sparks.append([tile_center.copy(), math.pi * i, 6, 3, CYBER_COLORS['primary_cyan']])
                 for i in range(20):
-                    particles.append(particles_m.Particle(tile_center[0], tile_center[1], 'light', [random.randint(0, 10) / 10 - 0.5, (random.randint(0, 120) / 10 + 1) * random.choice([-1, 1])], 0.1, 2 + random.randint(0, 20) / 10, custom_color=(255, 255, 255)))
+                    particles.append(particles_m.Particle(tile_center[0], tile_center[1], 'light', [random.randint(0, 10) / 10 - 0.5, (random.randint(0, 120) / 10 + 1) * random.choice([-1, 1])], 0.1, 2 + random.randint(0, 20) / 10, custom_color=CYBER_COLORS['primary_green']))
         if rm:
             del tile[rm]
 
@@ -833,7 +1023,7 @@ while True:
             if event.key == K_e:
                 print(player.pos)
             if event.key == K_q:
-                player_message = [180, 'hello world', '']
+                player_message = [180, 'Test message', '']
             if event.key == K_RIGHT:
                 right = True
                 if not tutorial:
@@ -852,16 +1042,16 @@ while True:
                                 particle_burst(player.center, 50)
                                 player_mana -= 1
                             else:
-                                player_message = [200, 'I need more mana!', '']
+                                player_message = [200, CYBER_MESSAGES['need_firewall'], '']
                 else:
-                    player_message = [300, 'I need to move on...', '']
+                    player_message = [300, CYBER_MESSAGES['move_on'], '']
                 down = True
             if event.key == K_UP:
                 if not death and (air_timer < 5) and not soul_mode and not map_transition:
                     sounds['jump'].play()
                     player_velocity[1] = -5.2
-                    sparks.append([list(player.rect.bottomleft), math.pi * 0.9, 2 + random.randint(0, 10) / 10, 5, (255, 255, 255)])
-                    sparks.append([list(player.rect.bottomright), math.pi * 0.1, 2 + random.randint(0, 10) / 10, 5, (255, 255, 255)])
+                    sparks.append([list(player.rect.bottomleft), math.pi * 0.9, 2 + random.randint(0, 10) / 10, 5, CYBER_COLORS['primary_cyan']])
+                    sparks.append([list(player.rect.bottomright), math.pi * 0.1, 2 + random.randint(0, 10) / 10, 5, CYBER_COLORS['primary_cyan']])
                 up = True
         if event.type == KEYUP:
             if event.key == K_RIGHT:
@@ -876,7 +1066,7 @@ while True:
     if death:
         player.render(display, scroll)
 
-    # eye
+    # servidor infectado (reemplaza el ojo)
     eye_base = [386, 220]
     if not soul_mode:
         eye_angle = player.get_angle(eye_base) + math.pi
@@ -889,15 +1079,8 @@ while True:
         if random.randint(0, 180) == 0:
             eye_height = 2
         eye_height += (eye_target_height - eye_height) / 20
-        eye_points = [[-20, 0], [-10, -eye_height * 0.4], [10, -eye_height * 0.4], [20, 0], [8, eye_height * 0.3], [-8, eye_height * 0.3]]
-        render_points = [[p[0] + eye_base[0] - scroll[0], p[1] + eye_base[1] - scroll[1]] for p in eye_points]
         if events['lv3timer'] < 6800:
-            pygame.draw.polygon(display, (255, 255, 255), render_points)
-            eye_center = [eye_base[0] - scroll[0], eye_base[1] - scroll[1]]
-            advance(eye_center, eye_angle, 4)
-            if eye_height > 16:
-                pygame.draw.circle(display, (244, 89, 120), eye_center, 5 * (eye_height / 60 + 0.7))
-                pygame.draw.circle(display, (0, 0, 0), eye_center, 4 * (eye_height / 60 + 0.7))
+            render_server_boss(eye_base, scroll, eye_height, game_time)
 
     # events
     dt = (time.time() - last_time) * 60
@@ -907,15 +1090,15 @@ while True:
     if level_name == 'level_1':
         if not events['lv1note'] and player_mana:
             if events['lv1mana'] and (player_bubble_size < 0.05) and (player_message[0] == 0) and (level_time > 1500):
-                player_message = [320, 'I heard the exit was high up...', '']
+                player_message = [320, CYBER_MESSAGES['exit_up'], '']
                 events['lv1note'] = 1
         if (events['lv1note'] == 1) and player_mana:
             if events['lv1mana'] and (player_bubble_size < 0.05) and (player_message[0] == 0) and (level_time > 2500):
-                player_message = [500, 'I can travel up with soul release.', '']
+                player_message = [500, CYBER_MESSAGES['remote_scan'], '']
                 events['lv1note'] = 2
         if not events['lv1mana']:
             if player.pos[0] > 530:
-                player_message = [320, 'I need mana to do that again...', '']
+                player_message = [320, CYBER_MESSAGES['need_firewall'], '']
                 events['lv1mana'] = 1
 
         if not events['lv1']:
@@ -925,8 +1108,8 @@ while True:
                     vel = [-4, 0]
                     angle = math.atan2(vel[1], vel[0])
                     spawn = [display.get_width() + scroll[0], display.get_height() * i / 15 + scroll[1]]
-                    for i in range(5):
-                        sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 10, (0, 0, 0)])
+                    for j in range(5):
+                        sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 10, CYBER_COLORS['danger']])
                     projectiles.append([spawn, vel, 'enemy'])
                 sounds['eye_shoot_large'].play()
         if events['lv1']:
@@ -946,10 +1129,10 @@ while True:
         last = events['lv2timer']
         events['lv2timer'] += dt
         if events['lv2timer'] < 6:
-            player_message = [420, 'This seems like a trap...', '']
+            player_message = [420, CYBER_MESSAGES['trap'], '']
         if (last < 920) and (events['lv2timer'] >= 920):
             reset = True
-            player_message = [420, 'I just need to survive for now.', '']
+            player_message = [420, CYBER_MESSAGES['survive'], '']
         if (last < 1840) and (events['lv2timer'] >= 1840):
             reset = True
         if (last < 2750) and (events['lv2timer'] >= 2750):
@@ -967,12 +1150,12 @@ while True:
                     else:
                         spawn = [scroll[0], display.get_height() * i / 8 + scroll[1]]
                     for j in range(5):
-                        sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 10, (0, 0, 0)])
+                        sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 10, CYBER_COLORS['danger']])
                     projectiles.append([spawn, vel, 'enemy'])
                 sounds['eye_shoot_large'].play()
         if (last < 3880) and (events['lv2timer'] >= 3880):
             reset = True
-            player_message = [420, 'Phew, that was close.', '']
+            player_message = [420, CYBER_MESSAGES['clear'], '']
             door = (330, 372)
             ready_to_exit = True
             sounds['end_level'].play()
@@ -981,7 +1164,7 @@ while True:
         last = events['lv3timer']
         events['lv3timer'] += dt
         if events['lv3timer'] < 6:
-            player_message = [200, 'Uh oh...', '']
+            player_message = [200, CYBER_MESSAGES['threat'], '']
         if (200 < events['lv3timer'] < 800):
             eye_target_height = 30
             if random.randint(0, 70) == 0:
@@ -991,8 +1174,8 @@ while True:
                     angle = eye_angle + random.random() * math.pi / 4 - math.pi / 8
                     vel = [math.cos(angle) * speed, math.sin(angle) * speed]
                     spawn = eye_base.copy()
-                    for i in range(3):
-                        sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 10, (0, 0, 0)])
+                    for j in range(3):
+                        sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 10, CYBER_COLORS['danger']])
                     projectiles.append([spawn, vel, 'enemy'])
         elif (1300 < events['lv3timer'] < 1800):
             eye_target_height = 30
@@ -1004,8 +1187,8 @@ while True:
                     angle = math.pi * 2 * i / 36 + offset
                     vel = [math.cos(angle) * speed, math.sin(angle) * speed]
                     spawn = eye_base.copy()
-                    for i in range(3):
-                        sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 10, (0, 0, 0)])
+                    for j in range(3):
+                        sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 10, CYBER_COLORS['danger']])
                     projectiles.append([spawn, vel, 'enemy'])
         elif (2500 < events['lv3timer'] < 3100):
             eye_target_height = 38
@@ -1017,8 +1200,8 @@ while True:
                     angle = math.pi * 2 * i / 6 + offset
                     vel = [math.cos(angle) * speed, math.sin(angle) * speed]
                     spawn = eye_base.copy()
-                    for i in range(3):
-                        sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 7 + random.randint(0, 30) / 10, 5, (0, 0, 0)])
+                    for j in range(3):
+                        sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 7 + random.randint(0, 30) / 10, 5, CYBER_COLORS['danger']])
                     projectiles.append([spawn, vel, 'enemy'])
         elif (3600 < events['lv3timer'] < 4500):
             eye_target_height = 38
@@ -1034,8 +1217,8 @@ while True:
                         angle = math.pi * 2 * i / 6 + offset
                         vel = [math.cos(angle) * speed, math.sin(angle) * speed]
                         spawn = eye_base.copy()
-                        for i in range(3):
-                            sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 7 + random.randint(0, 30) / 10, 5, (0, 0, 0)])
+                        for k in range(3):
+                            sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 7 + random.randint(0, 30) / 10, 5, CYBER_COLORS['danger']])
                         projectiles.append([spawn, vel, 'enemy'])
         elif (5200 < events['lv3timer'] < 5800):
             eye_target_height = 30
@@ -1047,8 +1230,8 @@ while True:
                     angle = math.pi * 2 * i / 3 + offset
                     vel = [math.cos(angle) * speed, math.sin(angle) * speed]
                     spawn = eye_base.copy()
-                    for i in range(3):
-                        sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 7 + random.randint(0, 30) / 10, 5, (0, 0, 0)])
+                    for j in range(3):
+                        sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 7 + random.randint(0, 30) / 10, 5, CYBER_COLORS['danger']])
                     projectiles.append([spawn, vel, 'enemy'])
         else:
             eye_target_height = 4
@@ -1064,20 +1247,20 @@ while True:
             sounds['shake'].play()
         if (last < 6800) and (events['lv3timer'] >= 6800):
             reset = True
-            player_message = [200, '...', '']
+            player_message = [200, CYBER_MESSAGES['silence'], '']
             door = (360, 360)
             sounds['end_level'].play()
             sounds['death'].play()
             ready_to_exit = True
             for i in range(35):
-                sparks.append([eye_base.copy(), math.radians(random.randint(1, 360)), 7 + random.randint(0, 30) / 10, 8, (255, 255, 255)])
+                sparks.append([eye_base.copy(), math.radians(random.randint(1, 360)), 7 + random.randint(0, 30) / 10, 8, CYBER_COLORS['primary_green']])
             for i in range(300):
                 angle = random.randint(1, 360)
                 speed = random.randint(70, 250) / 10
                 vel = [math.cos(angle) * speed, math.sin(angle) * speed]
-                particles.append(particles_m.Particle(eye_base[0], eye_base[1], 'red_light', vel, 0.2, 1.5 + random.randint(0, 20) / 10, custom_color=(255, 255, 255)))
+                particles.append(particles_m.Particle(eye_base[0], eye_base[1], 'red_light', vel, 0.2, 1.5 + random.randint(0, 20) / 10, custom_color=CYBER_COLORS['primary_green']))
         if (last < 1200) and (events['lv3timer'] >= 1200):
-            player_message = [200, 'There\'s more?', '']
+            player_message = [200, CYBER_MESSAGES['more_attacks'], '']
     
     if reset:
         if soul_mode:
@@ -1102,7 +1285,6 @@ while True:
         projectile[0][0] += projectile[1][0] * 0.2 * dt
         projectile[0][1] += projectile[1][1] * 0.2 * dt
         
-        # Contar enemigos que salen de pantalla (consideramos derrotados)
         if (projectile[0][0] < scroll[0] - 50 or projectile[0][0] > scroll[0] + display.get_width() + 50 or
             projectile[0][1] < scroll[1] - 50 or projectile[0][1] > scroll[1] + display.get_height() + 50):
             if projectile[2] == 'enemy':
@@ -1116,20 +1298,18 @@ while True:
                         death = 1
                         soul_mode = 0
                         scroll_target = scroll_target.copy()
-                        for i in range(30):
-                            sparks.append([list(r.center), math.radians(random.randint(1, 360)), 5 + random.randint(0, 30) / 10, 4, (255, 255, 255)])
-                        for i in range(120):
+                        for j in range(30):
+                            sparks.append([list(r.center), math.radians(random.randint(1, 360)), 5 + random.randint(0, 30) / 10, 4, CYBER_COLORS['danger']])
+                        for j in range(120):
                             angle = random.randint(1, 360)
                             speed = random.randint(70, 250) / 10
                             vel = [math.cos(angle) * speed, math.sin(angle) * speed]
-                            particles.append(particles_m.Particle(r.center[0], r.center[1], 'light', vel, 0.4, 2 + random.randint(0, 20) / 10, custom_color=(255, 255, 255)))
-                display.blit(proj_img, (projectile[0][0] - scroll[0] - 2, projectile[0][1] - scroll[1] - 2))
-                particles_m.blit_center_add(display, particles_m.circle_surf(3 + 3 * (math.sin(projectile[3] * game_time * 0.15) + 3), (20, 6, 12)), (projectile[0][0] - scroll[0], projectile[0][1] - scroll[1]))
+                            particles.append(particles_m.Particle(r.center[0], r.center[1], 'light', vel, 0.4, 2 + random.randint(0, 20) / 10, custom_color=CYBER_COLORS['danger']))
+                render_threat_warning(projectile, scroll, game_time)
     
-    # Agregar enemigos derrotados al historial
     if projectiles_removed > 0:
         for _ in range(projectiles_removed):
-            game_history.add_enemy_defeated()
+            game_history.add_threat_neutralized()
     
     if level_name != 'level_3':
         projectiles = projectiles[-300:]
@@ -1145,7 +1325,7 @@ while True:
             angle = math.atan2(vel[1], vel[0])
             spawn = [display.get_width() * random.random() + scroll[0], scroll[1]]
             for i in range(5):
-                sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 6, (0, 0, 0)])
+                sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 6, CYBER_COLORS['danger']])
             projectiles.append([spawn, vel, 'enemy'])
             sounds['eye_shoot'].play()
 
@@ -1167,7 +1347,7 @@ while True:
 
     # border fog
     fog_surf = pygame.Surface((display.get_width(), 24))
-    pygame.draw.polygon(fog_surf, (0, 2, 4), b_points)
+    pygame.draw.polygon(fog_surf, (0, 5, 10), b_points)
     fog_surf.set_alpha(150)
     fog_surf.set_colorkey((0, 0, 0))
     display.blit(pygame.transform.flip(fog_surf, True, False), (0, -6))
@@ -1186,7 +1366,7 @@ while True:
         particle.draw(display, scroll)
         if particle.type == 'light' and particle.time_left > 0:
             circle_size = max(1, 5 + particle.time_left * 0.5 * (math.sin(particle.random_constant * game_time * 0.01) + 3))
-            particles_m.blit_center_add(display, particles_m.circle_surf(circle_size, (1 + particle.time_left * 0.2, 4 + particle.time_left * 0.4, 8 + particle.time_left * 0.6)), (particle.x - scroll[0], particle.y - scroll[1]))
+            particles_m.blit_center_add(display, particles_m.circle_surf(circle_size, (0, 1 + particle.time_left * 0.4, 4 + particle.time_left * 0.8)), (particle.x - scroll[0], particle.y - scroll[1]))
         if particle.type == 'red_light' and particle.time_left > 0:
             circle_size = max(1, 5 + particle.time_left * 0.5 * (math.sin(particle.random_constant * game_time * 0.01) + 3))
             particles_m.blit_center_add(display, particles_m.circle_surf(circle_size, (8 + particle.time_left * 0.6, 1 + particle.time_left * 0.2, 4 + particle.time_left * 0.4)), (particle.x - scroll[0], particle.y - scroll[1]))
@@ -1195,8 +1375,8 @@ while True:
 
     # door vfx
     if door:
-        particles_m.blit_center_add(display, particles_m.circle_surf(7 + 4 * (math.sin(game_time * 0.15) + 3), (20, 6, 12)), (door[0] + 6 - scroll[0], door[1] + 9 - scroll[1]))
-        render_mana([door[0] - scroll[0] + 6, door[1] - scroll[1] + 9], size=[2, 3], color1=(0, 0, 1), color2=(244, 89, 120))
+        particles_m.blit_center_add(display, particles_m.circle_surf(7 + 4 * (math.sin(game_time * 0.15) + 3), (0, 20, 12)), (door[0] + 6 - scroll[0], door[1] + 9 - scroll[1]))
+        render_firewall([door[0] - scroll[0] + 6, door[1] - scroll[1] + 9], size=[2, 3], color1=(0, 50, 1), color2=CYBER_COLORS['safe'])
 
     # render soul
     if soul_mode:
@@ -1238,41 +1418,46 @@ while True:
                     if (j < 2) or (j > 5):
                         p2[0] += font.width(player_message[1]) * player_bubble_size
 
-            pygame.draw.polygon(display, (0, 0, 0), points)
+            pygame.draw.polygon(display, (0, 10, 20), points)
+            pygame.draw.polygon(display, CYBER_COLORS['primary_cyan'], points, 1)
 
             if i == 6:
                 font.render(player_message[2], display, [p[0] - scroll[0], p[1] - scroll[1] - 3])
 
+    # Tutoriales
     if tutorial < 200:
         if tutorial != 0:
             tutorial += (display.get_width() - tutorial) / 7
-        black_font.render('arrow keys to move and jump', display, (display.get_width() // 2 + tutorial - font.width('arrow keys to move and jump') // 2 + 1, display.get_height() // 2 - 10))
-        blue_font.render('arrow keys to move and jump', display, (display.get_width() // 2 + tutorial - font.width('arrow keys to move and jump') // 2, display.get_height() // 2 - 11))
-        font.render('arrow keys to move and jump', display, (display.get_width() // 2 + tutorial - font.width('arrow keys to move and jump') // 2, display.get_height() // 2 - 12))
+        black_font.render('Arrow keys to navigate', display, (display.get_width() // 2 + tutorial - font.width('Arrow keys to navigate') // 2 + 1, display.get_height() // 2 - 10))
+        blue_font.render('Arrow keys to navigate', display, (display.get_width() // 2 + tutorial - font.width('Arrow keys to navigate') // 2, display.get_height() // 2 - 11))
+        font.render('Arrow keys to navigate', display, (display.get_width() // 2 + tutorial - font.width('Arrow keys to navigate') // 2, display.get_height() // 2 - 12))
     if tutorial_2 < 200:
         if tutorial_2 > 0:
             tutorial_2 += (display.get_width() - tutorial_2) / 7
         if tutorial_2 != -1:
-            black_font.render('use down arrow to release soul', display, (display.get_width() // 2 + tutorial_2 - font.width('use down arrow to release soul') // 2 + 1, display.get_height() // 2 - 10))
-            blue_font.render('use down arrow to release soul', display, (display.get_width() // 2 + tutorial_2 - font.width('use down arrow to release soul') // 2, display.get_height() // 2 - 11))
-            font.render('use down arrow to release soul', display, (display.get_width() // 2 + tutorial_2 - font.width('use down arrow to release soul') // 2, display.get_height() // 2 - 12))
+            black_font.render('Down arrow: deploy scanner', display, (display.get_width() // 2 + tutorial_2 - font.width('Down arrow: deploy scanner') // 2 + 1, display.get_height() // 2 - 10))
+            blue_font.render('Down arrow: deploy scanner', display, (display.get_width() // 2 + tutorial_2 - font.width('Down arrow: deploy scanner') // 2, display.get_height() // 2 - 11))
+            font.render('Down arrow: deploy scanner', display, (display.get_width() // 2 + tutorial_2 - font.width('Down arrow: deploy scanner') // 2, display.get_height() // 2 - 12))
     if level_name == 'level_4':
-        black_font.render('Thanks for playing!', display, (display.get_width() // 2 - font.width('Thanks for playing!') // 2 + 1, display.get_height() // 2 - 10))
-        blue_font.render('Thanks for playing!', display, (display.get_width() // 2 - font.width('Thanks for playing!') // 2, display.get_height() // 2 - 11))
-        font.render('Thanks for playing!', display, (display.get_width() // 2 - font.width('Thanks for playing!') // 2, display.get_height() // 2 - 12))
+        black_font.render('System Secured!', display, (display.get_width() // 2 - font.width('System Secured!') // 2 + 1, display.get_height() // 2 - 10))
+        blue_font.render('System Secured!', display, (display.get_width() // 2 - font.width('System Secured!') // 2, display.get_height() // 2 - 11))
+        font.render('System Secured!', display, (display.get_width() // 2 - font.width('System Secured!') // 2, display.get_height() // 2 - 12))
 
-    no_mana = ''
+    # HUD
+    render_cyber_hud(player_mana, level_time)
+    
+    no_firewall = ''
     if not player_mana:
-        no_mana = 'no '
-    black_font.render(no_mana + 'mana', display, (5, 6))
+        no_firewall = 'no '
+    black_font.render(no_firewall + 'firewall', display, (5, 6))
     if player_mana:
-        blue_font.render(no_mana + 'mana', display, (5, 5))
+        blue_font.render(no_firewall + 'firewall', display, (5, 5))
     else:
-        red_font.render(no_mana + 'mana', display, (5, 5))
-    font.render(no_mana + 'mana', display, (5, 4))
+        red_font.render(no_firewall + 'firewall', display, (5, 5))
+    font.render(no_firewall + 'firewall', display, (5, 4))
 
     for i in range(player_mana):
-        render_mana([10 + i * 16, 18])
+        render_firewall([10 + i * 16, 18])
 
     if zoom == 1:
         screen.blit(pygame.transform.scale(display, screen.get_size()), (0, 0))
