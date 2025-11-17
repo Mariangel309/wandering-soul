@@ -6,6 +6,9 @@ import os
 import json
 import datetime
 
+# Set dummy audio driver for headless environment
+os.environ['SDL_AUDIODRIVER'] = 'dummy'
+
 import pygame
 from pygame.locals import *
 
@@ -379,7 +382,10 @@ class GameMenu:
                 
                 player_name = session['player_name'][:12]
                 duration = session['duration_formatted']
-                threats = str(session['threats_neutralized'])
+                
+                # Soporte para formatos antiguos y nuevos
+                threats = session.get('threats_neutralized', session.get('enemies_defeated', 0))
+                threats = str(threats)
                 
                 data_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_green'])
                 
@@ -873,9 +879,6 @@ while True:
                     if 'tile_offset' in spritesheets_data[tile[1][0]][tile_id]:
                         offset = spritesheets_data[tile[1][0]][tile_id]['tile_offset']
             if tile[1][0] == 'ground':
-                if collideables == []:
-                    if not death:
-                        player.render(display, scroll)
                 collideables.append(pygame.Rect(tile[0][0], tile[0][1], TILE_SIZE, TILE_SIZE))
             if tile[1][0] == 'torches':
                 if random.randint(1, 6) == 1:
@@ -898,6 +901,10 @@ while True:
                 torch_sin = math.sin((tile[0][1] % 100 + 200) / 300 * game_time * 0.01)
                 particles_m.blit_center_add(display, particles_m.circle_surf(15 + (torch_sin + 3) * 8.5, (0, 4 + (torch_sin + 4) * 0.5, 8 + (torch_sin + 4) * 0.9)), (tile[0][0] - scroll[0] + 6, tile[0][1] - scroll[1] + 4))
                 particles_m.blit_center_add(display, particles_m.circle_surf(9 + (torch_sin + 3) * 4, (0, 8 + (torch_sin + 4) * 0.5, 12 + (torch_sin + 4) * 0.9)), (tile[0][0] - scroll[0] + 6, tile[0][1] - scroll[1] + 4))
+    
+    # Renderizar jugador después de tiles pero antes de actualización
+    if not death:
+        player.render(display, scroll)
 
     # player
     player.update(1 / 60 * dt)
