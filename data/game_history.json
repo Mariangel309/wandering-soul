@@ -222,5 +222,71 @@
     "breaches": 0,
     "final_level": "level_1",
     "levels_completed": []
+  },
+  {
+    "player_name": "ulia",
+    "date": "2025-11-16 20:38:00",
+    "duration_seconds": 6,
+    "duration_formatted": "6s",
+    "threats_neutralized": 0,
+    "firewalls_collected": 0,
+    "breaches": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "juliye",
+    "date": "2025-11-16 20:44:25",
+    "duration_seconds": 376,
+    "duration_formatted": "6m 16s",
+    "threats_neutralized": 461834,
+    "firewalls_collected": 12,
+    "breaches": 21,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "paula",
+    "date": "2025-11-17 15:28:13",
+    "duration_seconds": 127,
+    "duration_formatted": "2m 7s",
+    "threats_neutralized": 596594,
+    "firewalls_collected": 3,
+    "breaches": 1,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "miados",
+    "date": "2025-11-17 15:40:52",
+    "duration_seconds": 6,
+    "duration_formatted": "6s",
+    "threats_neutralized": 0,
+    "firewalls_collected": 0,
+    "breaches": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "miados",
+    "date": "2025-11-17 15:46:55",
+    "duration_seconds": 347,
+    "duration_formatted": "5m 47s",
+    "threats_neutralized": 564568,
+    "firewalls_collected": 10,
+    "breaches": 18,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "marie",
+    "date": "2025-11-17 16:28:22",
+    "duration_seconds": 3,
+    "duration_formatted": "3s",
+    "threats_neutralized": 0,
+    "firewalls_collected": 0,
+    "breaches": 0,
+    "final_level": "level_1",
+    "levels_completed": []
   }
 ]

@@ -6,9 +6,6 @@ import os
 import json
 import datetime
 
-# Set dummy audio driver for headless environment
-os.environ['SDL_AUDIODRIVER'] = 'dummy'
-
 import pygame
 from pygame.locals import *
 
@@ -22,8 +19,20 @@ from scripts.clip import clip
 
 TILE_SIZE = 12
 
-pygame.mixer.pre_init(44100, -16, 2, 512)
-pygame.init()
+# Try to initialize audio, if fails use dummy driver
+audio_enabled = True
+try:
+    pygame.mixer.pre_init(44100, -16, 2, 512)
+    pygame.init()
+    # Test if mixer is actually working
+    pygame.mixer.get_init()
+except:
+    # Audio hardware not available, use dummy driver
+    os.environ['SDL_AUDIODRIVER'] = 'dummy'
+    pygame.mixer.pre_init(44100, -16, 2, 512)
+    pygame.init()
+    audio_enabled = False
+    print("Audio not available - running in silent mode")
 pygame.display.set_caption('NetGuardian - The Last Firewall')
 screen = pygame.display.set_mode((900, 600), pygame.SCALED + pygame.RESIZABLE)
 pygame.mouse.set_visible(True)
@@ -178,7 +187,10 @@ class VolumeControl:
         self.x = x
         self.y = y
         self.font = font
-        self.volume = pygame.mixer.music.get_volume()
+        try:
+            self.volume = pygame.mixer.music.get_volume()
+        except:
+            self.volume = 0.5
         self.plus_button = Button(x + 50, y, 20, 20, '+', font)
         self.minus_button = Button(x + 20, y, 20, 20, '-', font)
     
@@ -194,12 +206,18 @@ class VolumeControl:
         
         if self.plus_button.check_click(mouse_pos, mouse_pressed):
             self.volume = min(1.0, self.volume + 0.1)
-            pygame.mixer.music.set_volume(self.volume)
+            try:
+                pygame.mixer.music.set_volume(self.volume)
+            except:
+                pass
             return True
         
         if self.minus_button.check_click(mouse_pos, mouse_pressed):
             self.volume = max(0.0, self.volume - 0.1)
-            pygame.mixer.music.set_volume(self.volume)
+            try:
+                pygame.mixer.music.set_volume(self.volume)
+            except:
+                pass
             return True
         
         return False
@@ -762,7 +780,7 @@ auto_return = {
 # ============= DATOS DE NPCs Y PUZZLES =============
 level_npcs = {
     'level_1': [
-        NPC(250, 100, 'Firewall Alpha', [
+        NPC(250, 165, 'Firewall Alpha', [
             'Bienvenido, Guardian de Red.',
             'Este sector ha sido comprometido.',
             'Colecta firewalls para fortalecer tus defensas.'
@@ -829,9 +847,37 @@ level_puzzles = {
     ),
 }
 
-sounds = {k.split('.')[0]: pygame.mixer.Sound('data/sfx/' + k) for k in os.listdir('data/sfx')}
-sounds['eye_shoot'].set_volume(0.7)
-sounds['jump'].set_volume(0.3)
+# Load sounds with fallback for environments without audio
+try:
+    sounds = {k.split('.')[0]: pygame.mixer.Sound('data/sfx/' + k) for k in os.listdir('data/sfx')}
+    sounds['eye_shoot'].set_volume(0.7)
+    sounds['jump'].set_volume(0.3)
+except:
+    # Create empty sound dictionary if audio not available
+    sounds = {k.split('.')[0]: None for k in os.listdir('data/sfx')}
+
+def play_sound(sound_name):
+    """Safely play a sound, handling cases where audio is not available"""
+    if sound_name in sounds and sounds[sound_name] is not None:
+        try:
+            sounds[sound_name].play()
+        except:
+            pass
+
+def play_music(music_file, loops=-1):
+    """Safely play music, handling cases where audio is not available"""
+    try:
+        pygame.mixer.music.load(music_file)
+        pygame.mixer.music.play(loops)
+    except:
+        pass
+
+def fadeout_music(time_ms):
+    """Safely fadeout music, handling cases where audio is not available"""
+    try:
+        pygame.mixer.music.fadeout(time_ms)
+    except:
+        pass
 
 def reload_level(restart_audio=True):
     global player, projectiles, particles, scroll_target, events, soul_mode, level_time, player_mana, level_map, player_message, zoom, death, next_level, door, ready_to_exit, tutorial, tutorial_2, true_scroll, npcs, current_puzzle, puzzle_input_active, puzzle_user_input
@@ -885,11 +931,9 @@ def reload_level(restart_audio=True):
 
     if restart_audio:
         if level_name == 'level_3':
-            pygame.mixer.music.load('data/music_2.wav')
-            pygame.mixer.music.play(-1)
+            play_music('data/music_2.wav')
         else:
-            pygame.mixer.music.load('data/music_1.wav')
-            pygame.mixer.music.play(-1)
+            play_music('data/music_1.wav')
 
 def advance(pos, rot, amt):
     pos[0] += math.cos(rot) * amt
@@ -982,8 +1026,7 @@ game_menu = GameMenu(display, font)
 game_state = 'menu'
 game_history = game_menu.history
 
-pygame.mixer.music.load('data/music_1.wav')
-pygame.mixer.music.play(-1)
+play_music('data/music_1.wav')
 
 while True:
     # MENÚ
@@ -1102,10 +1145,10 @@ while True:
         if player.get_distance([door[0] + 6, door[1] + 9]) < 5:
             if puzzle_solved:
                 if map_transition == 0:
-                    pygame.mixer.music.fadeout(500)
+                    fadeout_music(500)
                     map_transition = 1
                     next_level = True
-                    sounds['door'].play()
+                    play_sound('door')
             else:
                 if player_message[0] == 0:
                     player_message = [120, 'Terminal de acceso bloqueada!', '']
@@ -1232,7 +1275,7 @@ while True:
         if auto_return[level_name]:
             if soul_mode > 240:
                 soul_mode = 0
-                sounds['exit_soul'].play()
+                play_sound('exit_soul')
                 particle_burst(player.center, 50)
                 player.pos = soul.pos.copy()
                 particle_burst(player.center, 50)
@@ -1263,8 +1306,8 @@ while True:
         rm = None
         for layer in tile:
             if tile[layer][0] == 'mana':
-                sounds['mana_1'].play()
-                sounds['mana_2'].play()
+                play_sound('mana_1')
+                play_sound('mana_2')
                 player_mana += 1
                 game_history.add_firewall_collected()
                 rm = layer
@@ -1300,10 +1343,10 @@ while True:
                 elif event.key == K_RETURN:
                     if current_puzzle and puzzle_user_input:
                         if current_puzzle.check_answer(puzzle_user_input):
-                            sounds['mana_1'].play()
+                            play_sound('mana_1')
                             player_message = [180, 'Terminal desbloqueada!', '']
                         else:
-                            sounds['death'].play()
+                            play_sound('death')
                             player_message = [180, 'Acceso denegado. Intenta de nuevo.', '']
                         puzzle_user_input = ""
                         puzzle_input_active = False
@@ -1320,7 +1363,7 @@ while True:
                         message = npc.interact()
                         if message:
                             player_message = [300, message, '']
-                            sounds['thought'].play()
+                            play_sound('thought')
                         break
                 
                 if current_puzzle and not current_puzzle.solved:
@@ -1328,7 +1371,7 @@ while True:
                         puzzle_input_active = True
                         puzzle_user_input = ""
                         player_message = [400, current_puzzle.question, '']
-                        sounds['thought'].play()
+                        play_sound('thought')
             
             if event.key == K_q:
                 player_message = [180, 'Test message', '']
@@ -1344,7 +1387,7 @@ while True:
                         if soul_mode == 0:
                             if player_mana > 0:
                                 soul_mode = 1
-                                sounds['enter_soul'].play()
+                                play_sound('enter_soul')
                                 soul.pos = player.pos.copy()
                                 player.pos = player.pos.copy()
                                 particle_burst(player.center, 50)
@@ -1356,7 +1399,7 @@ while True:
                 down = True
             if event.key == K_UP:
                 if not death and (air_timer < 5) and not soul_mode and not map_transition:
-                    sounds['jump'].play()
+                    play_sound('jump')
                     player_velocity[1] = -5.2
                     sparks.append([list(player.rect.bottomleft), math.pi * 0.9, 2 + random.randint(0, 10) / 10, 5, CYBER_COLORS['primary_cyan']])
                     sparks.append([list(player.rect.bottomright), math.pi * 0.1, 2 + random.randint(0, 10) / 10, 5, CYBER_COLORS['primary_cyan']])
@@ -1419,7 +1462,7 @@ while True:
                     for j in range(5):
                         sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 10, CYBER_COLORS['danger']])
                     projectiles.append([spawn, vel, 'enemy'])
-                sounds['eye_shoot_large'].play()
+                play_sound('eye_shoot_large')
         if events['lv1']:
             if events['lv1'] != -1:
                 events['lv1'] += dt
@@ -1460,13 +1503,13 @@ while True:
                     for j in range(5):
                         sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 10, CYBER_COLORS['danger']])
                     projectiles.append([spawn, vel, 'enemy'])
-                sounds['eye_shoot_large'].play()
+                play_sound('eye_shoot_large')
         if (last < 3880) and (events['lv2timer'] >= 3880):
             reset = True
             player_message = [420, CYBER_MESSAGES['clear'], '']
             door = (330, 372)
             ready_to_exit = True
-            sounds['end_level'].play()
+            play_sound('end_level')
     
     if level_name == 'level_3':
         last = events['lv3timer']
@@ -1476,7 +1519,7 @@ while True:
         if (200 < events['lv3timer'] < 800):
             eye_target_height = 30
             if random.randint(0, 70) == 0:
-                sounds['eye_shoot_large'].play()
+                play_sound('eye_shoot_large')
                 for i in range(5):
                     speed = random.randint(30, 40) / 10
                     angle = eye_angle + random.random() * math.pi / 4 - math.pi / 8
@@ -1488,7 +1531,7 @@ while True:
         elif (1300 < events['lv3timer'] < 1800):
             eye_target_height = 30
             if random.randint(0, 90) == 0:
-                sounds['eye_shoot_large'].play()
+                play_sound('eye_shoot_large')
                 offset = random.random() * math.pi * 2
                 for i in range(36):
                     speed = 3.5
@@ -1501,7 +1544,7 @@ while True:
         elif (2500 < events['lv3timer'] < 3100):
             eye_target_height = 38
             if game_time % 10 == 0:
-                sounds['eye_shoot'].play()
+                play_sound('eye_shoot')
                 offset = game_time / 600 * math.pi * 2
                 for i in range(6):
                     speed = 3.5
@@ -1514,7 +1557,7 @@ while True:
         elif (3600 < events['lv3timer'] < 4500):
             eye_target_height = 38
             if game_time % 17 == 0:
-                sounds['eye_shoot'].play()
+                play_sound('eye_shoot')
                 for j in range(2):
                     if j == 0:
                         offset = game_time / 600 * math.pi * 2
@@ -1531,7 +1574,7 @@ while True:
         elif (5200 < events['lv3timer'] < 5800):
             eye_target_height = 30
             if game_time % 3 == 0:
-                sounds['eye_shoot'].play()
+                play_sound('eye_shoot')
                 offset = game_time / 600 * math.pi * 2
                 for i in range(3):
                     speed = 3.5
@@ -1552,13 +1595,13 @@ while True:
         if (last < 4800) and (events['lv3timer'] >= 4800):
             reset = True
         if (last < 6200) and (events['lv3timer'] >= 6200):
-            sounds['shake'].play()
+            play_sound('shake')
         if (last < 6800) and (events['lv3timer'] >= 6800):
             reset = True
             player_message = [200, CYBER_MESSAGES['silence'], '']
             door = (360, 360)
-            sounds['end_level'].play()
-            sounds['death'].play()
+            play_sound('end_level')
+            play_sound('death')
             ready_to_exit = True
             for i in range(35):
                 sparks.append([eye_base.copy(), math.radians(random.randint(1, 360)), 7 + random.randint(0, 30) / 10, 8, CYBER_COLORS['primary_green']])
@@ -1573,7 +1616,7 @@ while True:
     if reset:
         if soul_mode:
             soul_mode = 0
-            sounds['exit_soul'].play()
+            play_sound('exit_soul')
             particle_burst(player.center, 50)
             player.pos = soul.pos.copy()
             particle_burst(player.center, 50)
@@ -1602,7 +1645,7 @@ while True:
             if projectile[2] == 'enemy':
                 if not death:
                     if r.collidepoint(projectile[0]):
-                        sounds['death'].play()
+                        play_sound('death')
                         death = 1
                         soul_mode = 0
                         scroll_target = scroll_target.copy()
@@ -1635,7 +1678,7 @@ while True:
             for i in range(5):
                 sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 6, CYBER_COLORS['danger']])
             projectiles.append([spawn, vel, 'enemy'])
-            sounds['eye_shoot'].play()
+            play_sound('eye_shoot')
 
     # sparks
     for i, spark in sorted(enumerate(sparks), reverse=True):
@@ -1695,7 +1738,7 @@ while True:
         player_message[0] -= 1
         if player_message[0] % 3 == 0:
             if player_message[2] != player_message[1]:
-                sounds['thought'].play()
+                play_sound('thought')
             player_message[2] = player_message[1][:len(player_message[2]) + 1]
         player_bubble_size += (1 - player_bubble_size) / 5
     else:
@@ -1768,7 +1811,7 @@ while True:
             cursor_x = box_x + 5 + font.width(puzzle_user_input)
             pygame.draw.rect(display, CYBER_COLORS['primary_green'], (cursor_x, box_y + 10, 2, 10))
         
-        hint_text = "Enter: Enviar | ESC: Cancelar"
+        hint_text = "Soy un sistema que vigila quién entra y quién sale en una red. Enter: Enviar - ESC: Cancelar"
         font.render(hint_text, display, (display.get_width() // 2 - font.width(hint_text) // 2, box_y - 15))
 
     # HUD
