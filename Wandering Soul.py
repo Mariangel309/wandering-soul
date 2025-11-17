@@ -464,6 +464,140 @@ class GameMenu:
         return None
 
 
+# ============= SISTEMA DE NPCs =============
+class NPC:
+    def __init__(self, x, y, name, dialogues, npc_type='firewall'):
+        self.pos = [x, y]
+        self.name = name
+        self.dialogues = dialogues
+        self.current_dialogue = 0
+        self.npc_type = npc_type
+        self.interaction_radius = 20
+        self.talked = False
+    
+    def can_interact(self, player_pos):
+        distance = math.sqrt((self.pos[0] - player_pos[0])**2 + (self.pos[1] - player_pos[1])**2)
+        return distance < self.interaction_radius
+    
+    def interact(self):
+        if self.current_dialogue < len(self.dialogues):
+            message = self.dialogues[self.current_dialogue]
+            self.current_dialogue += 1
+            self.talked = True
+            return message
+        return None
+    
+    def render(self, surface, scroll, game_time):
+        screen_pos = [self.pos[0] - scroll[0], self.pos[1] - scroll[1]]
+        
+        if self.npc_type == 'firewall':
+            size = 8
+            glow = abs(math.sin(game_time * 0.05)) * 3
+            pygame.draw.circle(surface, CYBER_COLORS['primary_cyan'], 
+                             (int(screen_pos[0]), int(screen_pos[1])), int(size + glow), 2)
+            pygame.draw.circle(surface, CYBER_COLORS['safe'], 
+                             (int(screen_pos[0]), int(screen_pos[1])), int(size), 1)
+            
+            for i in range(4):
+                angle = game_time * 0.02 + i * math.pi / 2
+                x = screen_pos[0] + math.cos(angle) * (size - 2)
+                y = screen_pos[1] + math.sin(angle) * (size - 2)
+                pygame.draw.circle(surface, CYBER_COLORS['primary_green'], (int(x), int(y)), 2)
+        
+        elif self.npc_type == 'server':
+            width, height = 16, 20
+            pygame.draw.rect(surface, (40, 60, 100), 
+                           (screen_pos[0] - width//2, screen_pos[1] - height//2, width, height))
+            pygame.draw.rect(surface, CYBER_COLORS['primary_cyan'], 
+                           (screen_pos[0] - width//2, screen_pos[1] - height//2, width, height), 2)
+            
+            for i in range(3):
+                led_y = screen_pos[1] - 6 + i * 4
+                led_color = CYBER_COLORS['safe'] if (game_time + i*10) % 30 < 15 else (0, 100, 0)
+                pygame.draw.circle(surface, led_color, (int(screen_pos[0]), int(led_y)), 1)
+        
+        if not self.talked:
+            indicator_y = screen_pos[1] - 15 + math.sin(game_time * 0.1) * 2
+            pygame.draw.polygon(surface, CYBER_COLORS['warning'], [
+                [screen_pos[0], indicator_y - 3],
+                [screen_pos[0] - 3, indicator_y],
+                [screen_pos[0] + 3, indicator_y]
+            ])
+
+
+# ============= SISTEMA DE PUZZLES =============
+class CyberPuzzle:
+    def __init__(self, x, y, puzzle_type, correct_answer, question):
+        self.pos = [x, y]
+        self.puzzle_type = puzzle_type
+        self.correct_answer = correct_answer
+        self.question = question
+        self.active = False
+        self.solved = False
+        self.user_input = ""
+        self.message = ""
+        self.message_timer = 0
+    
+    def can_activate(self, player_pos):
+        distance = math.sqrt((self.pos[0] - player_pos[0])**2 + (self.pos[1] - player_pos[1])**2)
+        return distance < 25 and not self.solved
+    
+    def activate(self):
+        self.active = True
+        return self.question
+    
+    def check_answer(self, answer):
+        if answer.upper().strip() == self.correct_answer.upper().strip():
+            self.solved = True
+            self.active = False
+            self.message = "ACCESO CONCEDIDO!"
+            self.message_timer = 120
+            return True
+        else:
+            self.message = "ACCESO DENEGADO"
+            self.message_timer = 60
+            return False
+    
+    def update(self):
+        if self.message_timer > 0:
+            self.message_timer -= 1
+    
+    def render(self, surface, scroll, game_time):
+        screen_pos = [self.pos[0] - scroll[0], self.pos[1] - scroll[1]]
+        
+        size = 12
+        if not self.solved:
+            color = CYBER_COLORS['warning']
+            pulse = abs(math.sin(game_time * 0.1)) * 4
+            
+            pygame.draw.rect(surface, (60, 40, 0), 
+                           (screen_pos[0] - size - pulse, screen_pos[1] - size - pulse, 
+                            (size + pulse) * 2, (size + pulse) * 2))
+            pygame.draw.rect(surface, color, 
+                           (screen_pos[0] - size - pulse, screen_pos[1] - size - pulse, 
+                            (size + pulse) * 2, (size + pulse) * 2), 2)
+            
+            pygame.draw.line(surface, color,
+                           (screen_pos[0] - 6, screen_pos[1] - 6),
+                           (screen_pos[0] + 6, screen_pos[1] + 6), 2)
+            pygame.draw.line(surface, color,
+                           (screen_pos[0] + 6, screen_pos[1] - 6),
+                           (screen_pos[0] - 6, screen_pos[1] + 6), 2)
+        else:
+            color = CYBER_COLORS['safe']
+            pygame.draw.rect(surface, (0, 60, 40), 
+                           (screen_pos[0] - size, screen_pos[1] - size, size * 2, size * 2))
+            pygame.draw.rect(surface, color, 
+                           (screen_pos[0] - size, screen_pos[1] - size, size * 2, size * 2), 2)
+            
+            pygame.draw.line(surface, color,
+                           (screen_pos[0] - 4, screen_pos[1]),
+                           (screen_pos[0] - 1, screen_pos[1] + 4), 2)
+            pygame.draw.line(surface, color,
+                           (screen_pos[0] - 1, screen_pos[1] + 4),
+                           (screen_pos[0] + 6, screen_pos[1] - 4), 2)
+
+
 # ============= FUNCIONES DE RENDERIZADO CYBER =============
 def render_firewall(loc, size=[2, 3], color1=None, color2=None):
     global game_time
@@ -625,12 +759,82 @@ auto_return = {
     'level_4': True,
 }
 
+# ============= DATOS DE NPCs Y PUZZLES =============
+level_npcs = {
+    'level_1': [
+        NPC(250, 100, 'Firewall Alpha', [
+            'Bienvenido, Guardian de Red.',
+            'Este sector ha sido comprometido.',
+            'Colecta firewalls para fortalecer tus defensas.'
+        ], 'firewall'),
+        NPC(450, 130, 'Servidor Aliado', [
+            'Los ataques DDoS saturan este nodo.',
+            'Necesitas mas recursos para continuar.',
+            'El puerto seguro esta al final...'
+        ], 'server'),
+    ],
+    'level_2': [
+        NPC(450, 100, 'Firewall Beta', [
+            'Sector 2: Alta actividad de malware.',
+            'Los patrones de ataque son mas complejos.',
+            'Mantente alerta, Guardian.'
+        ], 'firewall'),
+        NPC(600, 150, 'Nodo de Inteligencia', [
+            'Detectando trafico sospechoso...',
+            'Recomiendo activar protocolos avanzados.',
+            'El puzzle te ayudara a avanzar.'
+        ], 'server'),
+    ],
+    'level_3': [
+        NPC(400, 380, 'Firewall Gamma', [
+            'Zona critica: Amenaza persistente avanzada.',
+            'Los atacantes usan tecnicas de evasion.',
+            'Confia en tus instintos.'
+        ], 'firewall'),
+        NPC(550, 400, 'Centro de Operaciones', [
+            'Sistema bajo asedio constante.',
+            'Cada segundo cuenta, Guardian.',
+            'La seguridad de la red depende de ti.'
+        ], 'server'),
+    ],
+    'level_4': [
+        NPC(400, 220, 'Firewall Omega', [
+            'Has llegado al nucleo del sistema.',
+            'Esta es la ultima linea de defensa.',
+            'Felicidades, Guardian. Mision cumplida.'
+        ], 'firewall'),
+    ],
+}
+
+level_puzzles = {
+    'level_1': CyberPuzzle(
+        650, 80, 'terminal',
+        'FIREWALL',
+        'Terminal bloqueada. Password: Que protege la red?'
+    ),
+    'level_2': CyberPuzzle(
+        700, 120, 'terminal',
+        'HTTPS',
+        'Protocolo seguro de transferencia? (HTTP_)'
+    ),
+    'level_3': CyberPuzzle(
+        650, 380, 'terminal',
+        'ENCRYPTION',
+        'Tecnica para proteger datos? (EN_R_PT__N)'
+    ),
+    'level_4': CyberPuzzle(
+        500, 220, 'terminal',
+        'GUARDIAN',
+        'Desbloqueo final. Tu identidad? (G_ _RD_ _N)'
+    ),
+}
+
 sounds = {k.split('.')[0]: pygame.mixer.Sound('data/sfx/' + k) for k in os.listdir('data/sfx')}
 sounds['eye_shoot'].set_volume(0.7)
 sounds['jump'].set_volume(0.3)
 
 def reload_level(restart_audio=True):
-    global player, projectiles, particles, scroll_target, events, soul_mode, level_time, player_mana, level_map, player_message, zoom, death, next_level, door, ready_to_exit, tutorial, tutorial_2, true_scroll
+    global player, projectiles, particles, scroll_target, events, soul_mode, level_time, player_mana, level_map, player_message, zoom, death, next_level, door, ready_to_exit, tutorial, tutorial_2, true_scroll, npcs, current_puzzle, puzzle_input_active, puzzle_user_input
     level_map.load_map(level_name + '.json')
     player.pos = level_spawns[level_name].copy()
     soul.pos = level_spawns[level_name].copy()
@@ -652,6 +856,23 @@ def reload_level(restart_audio=True):
     next_level = False
     ready_to_exit = False
     player_message = [0, '', '']
+    puzzle_input_active = False
+    puzzle_user_input = ""
+    
+    if level_name in level_npcs:
+        npcs = [NPC(npc.pos[0], npc.pos[1], npc.name, npc.dialogues.copy(), npc.npc_type) 
+                for npc in level_npcs[level_name]]
+    else:
+        npcs = []
+    
+    if level_name in level_puzzles:
+        puzzle_data = level_puzzles[level_name]
+        current_puzzle = CyberPuzzle(puzzle_data.pos[0], puzzle_data.pos[1], 
+                                     puzzle_data.puzzle_type, puzzle_data.correct_answer, 
+                                     puzzle_data.question)
+    else:
+        current_puzzle = None
+    
     if level_name == 'level_1':
         tutorial = 0
         tutorial_2 = -1
@@ -749,6 +970,12 @@ map_transition = 0
 
 eye_target_height = 30
 eye_height = 30
+
+# Variables para NPCs y Puzzles
+npcs = []
+current_puzzle = None
+puzzle_input_active = False
+puzzle_user_input = ""
 
 # Inicializar menú
 game_menu = GameMenu(display, font)
@@ -857,15 +1084,31 @@ while True:
 
     # door - ahora es puerto seguro
     if door:
-        render_secure_port(door, scroll, game_time)
+        puzzle_solved = (not current_puzzle) or current_puzzle.solved
+        
+        if puzzle_solved:
+            render_secure_port(door, scroll, game_time)
+        else:
+            pos = [door[0] - scroll[0], door[1] - scroll[1]]
+            pygame.draw.rect(display, (60, 20, 20), (pos[0], pos[1], 12, 18))
+            pygame.draw.rect(display, CYBER_COLORS['danger'], (pos[0], pos[1], 12, 18), 2)
+            if game_time % 60 < 30:
+                font.render('BLOQUEADO', display, (pos[0] - 20, pos[1] - 15))
+        
         if random.randint(1, 7) == 1:
-            particles.append(particles_m.Particle(door[0] + 6, door[1] + 9, 'light', [random.randint(0, 10) / 10 - 0.5, random.randint(0, 10) / 10 - 2], 0.1, 3.5 + random.randint(0, 20) / 10, custom_color=CYBER_COLORS['safe']))
+            color = CYBER_COLORS['safe'] if puzzle_solved else CYBER_COLORS['danger']
+            particles.append(particles_m.Particle(door[0] + 6, door[1] + 9, 'light', [random.randint(0, 10) / 10 - 0.5, random.randint(0, 10) / 10 - 2], 0.1, 3.5 + random.randint(0, 20) / 10, custom_color=color))
+        
         if player.get_distance([door[0] + 6, door[1] + 9]) < 5:
-            if map_transition == 0:
-                pygame.mixer.music.fadeout(500)
-                map_transition = 1
-                next_level = True
-                sounds['door'].play()
+            if puzzle_solved:
+                if map_transition == 0:
+                    pygame.mixer.music.fadeout(500)
+                    map_transition = 1
+                    next_level = True
+                    sounds['door'].play()
+            else:
+                if player_message[0] == 0:
+                    player_message = [120, 'Terminal de acceso bloqueada!', '']
 
     # render tiles
     render_list = level_map.get_visible(scroll)
@@ -901,6 +1144,29 @@ while True:
                 torch_sin = math.sin((tile[0][1] % 100 + 200) / 300 * game_time * 0.01)
                 particles_m.blit_center_add(display, particles_m.circle_surf(15 + (torch_sin + 3) * 8.5, (0, 4 + (torch_sin + 4) * 0.5, 8 + (torch_sin + 4) * 0.9)), (tile[0][0] - scroll[0] + 6, tile[0][1] - scroll[1] + 4))
                 particles_m.blit_center_add(display, particles_m.circle_surf(9 + (torch_sin + 3) * 4, (0, 8 + (torch_sin + 4) * 0.5, 12 + (torch_sin + 4) * 0.9)), (tile[0][0] - scroll[0] + 6, tile[0][1] - scroll[1] + 4))
+    
+    # Renderizar NPCs y Puzzles
+    for npc in npcs:
+        npc.render(display, scroll, game_time)
+        if npc.can_interact(player.pos) and not npc.talked:
+            screen_pos = [npc.pos[0] - scroll[0], npc.pos[1] - scroll[1]]
+            font.render('[E]', display, (screen_pos[0] - 8, screen_pos[1] - 25))
+    
+    if current_puzzle:
+        current_puzzle.update()
+        current_puzzle.render(display, scroll, game_time)
+        if current_puzzle.can_activate(player.pos) and not current_puzzle.solved:
+            screen_pos = [current_puzzle.pos[0] - scroll[0], current_puzzle.pos[1] - scroll[1]]
+            font.render('[E] Acceder', display, (screen_pos[0] - 20, screen_pos[1] - 25))
+        
+        if current_puzzle.message_timer > 0:
+            msg_y = display.get_height() // 2 + 40
+            if current_puzzle.solved:
+                blue_font.render(current_puzzle.message, display, 
+                               (display.get_width() // 2 - font.width(current_puzzle.message) // 2, msg_y))
+            else:
+                red_font.render(current_puzzle.message, display,
+                              (display.get_width() // 2 - font.width(current_puzzle.message) // 2, msg_y))
     
     # Renderizar jugador después de tiles pero antes de actualización
     if not death:
@@ -1027,8 +1293,43 @@ while True:
                 else:
                     pygame.quit()
                     sys.exit()
-            if event.key == K_e:
-                print(player.pos)
+            
+            if puzzle_input_active:
+                if event.key == K_BACKSPACE:
+                    puzzle_user_input = puzzle_user_input[:-1]
+                elif event.key == K_RETURN:
+                    if current_puzzle and puzzle_user_input:
+                        if current_puzzle.check_answer(puzzle_user_input):
+                            sounds['mana_1'].play()
+                            player_message = [180, 'Terminal desbloqueada!', '']
+                        else:
+                            sounds['death'].play()
+                            player_message = [180, 'Acceso denegado. Intenta de nuevo.', '']
+                        puzzle_user_input = ""
+                        puzzle_input_active = False
+                elif event.key == K_ESCAPE:
+                    puzzle_input_active = False
+                    puzzle_user_input = ""
+                elif len(puzzle_user_input) < 20:
+                    if event.unicode.isalnum() or event.unicode == ' ':
+                        puzzle_user_input += event.unicode.upper()
+            
+            if event.key == K_e and not puzzle_input_active:
+                for npc in npcs:
+                    if npc.can_interact(player.pos):
+                        message = npc.interact()
+                        if message:
+                            player_message = [300, message, '']
+                            sounds['thought'].play()
+                        break
+                
+                if current_puzzle and not current_puzzle.solved:
+                    if current_puzzle.can_activate(player.pos):
+                        puzzle_input_active = True
+                        puzzle_user_input = ""
+                        player_message = [400, current_puzzle.question, '']
+                        sounds['thought'].play()
+            
             if event.key == K_q:
                 player_message = [180, 'Test message', '']
             if event.key == K_RIGHT:
@@ -1449,6 +1750,26 @@ while True:
         black_font.render('System Secured!', display, (display.get_width() // 2 - font.width('System Secured!') // 2 + 1, display.get_height() // 2 - 10))
         blue_font.render('System Secured!', display, (display.get_width() // 2 - font.width('System Secured!') // 2, display.get_height() // 2 - 11))
         font.render('System Secured!', display, (display.get_width() // 2 - font.width('System Secured!') // 2, display.get_height() // 2 - 12))
+    
+    # UI de Puzzle
+    if puzzle_input_active:
+        box_width = 200
+        box_height = 30
+        box_x = display.get_width() // 2 - box_width // 2
+        box_y = display.get_height() - 60
+        
+        pygame.draw.rect(display, (20, 40, 60), (box_x, box_y, box_width, box_height))
+        pygame.draw.rect(display, CYBER_COLORS['primary_cyan'], (box_x, box_y, box_width, box_height), 2)
+        
+        input_text = puzzle_user_input if puzzle_user_input else '_'
+        blue_font.render(input_text, display, (box_x + 5, box_y + 10))
+        
+        if game_time % 30 < 15:
+            cursor_x = box_x + 5 + font.width(puzzle_user_input)
+            pygame.draw.rect(display, CYBER_COLORS['primary_green'], (cursor_x, box_y + 10, 2, 10))
+        
+        hint_text = "Enter: Enviar | ESC: Cancelar"
+        font.render(hint_text, display, (display.get_width() // 2 - font.width(hint_text) // 2, box_y - 15))
 
     # HUD
     render_cyber_hud(player_mana, level_time)

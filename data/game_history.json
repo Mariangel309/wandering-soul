@@ -178,5 +178,49 @@
     "levels_completed": [
       "level_2"
     ]
+  },
+  {
+    "player_name": "ilusa",
+    "date": "2025-11-16 19:48:43",
+    "duration_seconds": 4,
+    "duration_formatted": "4s",
+    "threats_neutralized": 0,
+    "firewalls_collected": 0,
+    "breaches": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "usa",
+    "date": "2025-11-16 19:52:19",
+    "duration_seconds": 209,
+    "duration_formatted": "3m 29s",
+    "threats_neutralized": 163371,
+    "firewalls_collected": 6,
+    "breaches": 11,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "ulo",
+    "date": "2025-11-16 19:52:44",
+    "duration_seconds": 5,
+    "duration_formatted": "5s",
+    "threats_neutralized": 0,
+    "firewalls_collected": 0,
+    "breaches": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "mu",
+    "date": "2025-11-16 19:53:21",
+    "duration_seconds": 2,
+    "duration_formatted": "2s",
+    "threats_neutralized": 0,
+    "firewalls_collected": 0,
+    "breaches": 0,
+    "final_level": "level_1",
+    "levels_completed": []
   }
 ]
