@@ -616,6 +616,354 @@ class CyberPuzzle:
                            (screen_pos[0] + 6, screen_pos[1] - 4), 2)
 
 
+# ============= ESTRUCTURAS DE DATOS: QUEUE (COLA) =============
+class PacketQueue:
+    def __init__(self, max_size=10):
+        self.queue = []
+        self.max_size = max_size
+        self.processed_count = 0
+        self.threats_blocked = 0
+    
+    def enqueue(self, packet):
+        if len(self.queue) < self.max_size:
+            self.queue.append(packet)
+            return True
+        return False
+    
+    def dequeue(self):
+        if not self.is_empty():
+            return self.queue.pop(0)
+        return None
+    
+    def peek(self):
+        if not self.is_empty():
+            return self.queue[0]
+        return None
+    
+    def is_empty(self):
+        return len(self.queue) == 0
+    
+    def is_full(self):
+        return len(self.queue) >= self.max_size
+    
+    def size(self):
+        return len(self.queue)
+    
+    def process_packet(self, is_threat):
+        packet = self.dequeue()
+        if packet:
+            self.processed_count += 1
+            if is_threat and packet['is_threat']:
+                self.threats_blocked += 1
+                return True
+            elif not is_threat and not packet['is_threat']:
+                return True
+        return False
+
+
+# ============= ESTRUCTURAS DE DATOS: STACK (PILA) =============
+class FirewallRuleStack:
+    def __init__(self, max_size=20):
+        self.stack = []
+        self.max_size = max_size
+        self.message = ""
+        self.message_timer = 0
+        self.available_rules = ['BLOCK_IP', 'ALLOW_TCP', 'DENY_UDP', 'FILTER', 'INSPECT']
+    
+    def push(self, rule):
+        if len(self.stack) < self.max_size:
+            self.stack.append(rule)
+            self.message = f'Regla {rule} agregada al Stack'
+            self.message_timer = 60
+            return True
+        self.message = 'Stack lleno!'
+        self.message_timer = 60
+        return False
+    
+    def pop(self):
+        if not self.is_empty():
+            rule = self.stack.pop()
+            self.message = f'UNDO: Regla {rule} removida'
+            self.message_timer = 60
+            return rule
+        self.message = 'Stack vacio - sin reglas para deshacer'
+        self.message_timer = 60
+        return None
+    
+    def peek(self):
+        if not self.is_empty():
+            return self.stack[-1]
+        return None
+    
+    def is_empty(self):
+        return len(self.stack) == 0
+    
+    def size(self):
+        return len(self.stack)
+    
+    def clear(self):
+        self.stack = []
+    
+    def update(self, dt):
+        if self.message_timer > 0:
+            self.message_timer -= dt
+    
+    def render(self, surface, pos, game_time):
+        panel_height = 12 + max(len(self.stack), 1) * 8 + 18
+        pygame.draw.rect(surface, (10, 10, 20), 
+                        (pos[0], pos[1], 75, panel_height))
+        pygame.draw.rect(surface, CYBER_COLORS['primary_cyan'], 
+                        (pos[0], pos[1], 75, panel_height), 1)
+        
+        font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_green'])
+        font.render('FIREWALL:', surface, (pos[0] + 2, pos[1] + 2))
+        
+        if self.is_empty():
+            font.render('(Vacio)', surface, (pos[0] + 2, pos[1] + 12))
+        else:
+            for i, rule in enumerate(reversed(self.stack)):
+                y_pos = pos[1] + 12 + i * 8
+                is_top = (i == 0)
+                color = CYBER_COLORS['warning'] if is_top and game_time % 40 < 20 else CYBER_COLORS['primary_cyan']
+                font.render(rule[:10], surface, (pos[0] + 2, y_pos))
+        
+        help_y = pos[1] + panel_height - 16
+        help_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_green'])
+        help_font.render('[1-5]Add', surface, (pos[0] + 2, help_y))
+        help_font.render('[U]Undo', surface, (pos[0] + 2, help_y + 8))
+    
+    def render_message(self, surface):
+        if self.message_timer > 0:
+            font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_cyan'])
+            msg_x = surface.get_width() // 2 - len(self.message) * 2
+            msg_y = surface.get_height() - 30
+            font.render(self.message, surface, (msg_x, msg_y))
+
+
+# ============= SISTEMA IDS (INTRUSION DETECTION SYSTEM) =============
+class IntrusionDetectionSystem:
+    def __init__(self):
+        self.threat_level = 0
+        self.max_threat = 100
+        self.alerts = []
+        self.max_alerts = 5
+        self.scan_timer = 0
+        self.active_threats = []
+    
+    def update(self, dt):
+        self.threat_level = max(0, self.threat_level - 0.1 * dt)
+        self.scan_timer += dt
+        
+        if self.scan_timer >= 120:
+            self.scan_timer = 0
+        
+        self.active_threats = [t for t in self.active_threats if t['timer'] > 0]
+        for threat in self.active_threats:
+            threat['timer'] -= dt
+    
+    def add_threat(self, threat_type, severity):
+        self.threat_level = min(self.max_threat, self.threat_level + severity)
+        self.active_threats.append({
+            'type': threat_type,
+            'severity': severity,
+            'timer': 180,
+            'color': CYBER_COLORS['danger'] if severity > 30 else CYBER_COLORS['warning']
+        })
+        
+        alert_text = f"IDS: {threat_type} detectado!"
+        if len(self.alerts) >= self.max_alerts:
+            self.alerts.pop(0)
+        self.alerts.append({'text': alert_text, 'timer': 120})
+    
+    def get_threat_color(self):
+        if self.threat_level > 70:
+            return CYBER_COLORS['danger']
+        elif self.threat_level > 30:
+            return CYBER_COLORS['warning']
+        else:
+            return CYBER_COLORS['safe']
+    
+    def render(self, surface, pos, game_time):
+        bar_width = 60
+        bar_height = 6
+        
+        pygame.draw.rect(surface, (20, 20, 20), (pos[0], pos[1], bar_width, bar_height))
+        
+        fill_width = int((self.threat_level / self.max_threat) * bar_width)
+        pygame.draw.rect(surface, self.get_threat_color(), 
+                        (pos[0], pos[1], fill_width, bar_height))
+        pygame.draw.rect(surface, CYBER_COLORS['primary_cyan'], 
+                        (pos[0], pos[1], bar_width, bar_height), 1)
+        
+        ids_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_cyan'])
+        ids_font.render('IDS', surface, (pos[0], pos[1] - 8))
+        
+        y_offset = 0
+        for alert in self.alerts:
+            if alert['timer'] > 0:
+                alert_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['warning'])
+                alert_font.render(alert['text'], surface, (pos[0], pos[1] + 10 + y_offset))
+                alert['timer'] -= 1
+                y_offset += 8
+
+
+# ============= ANALIZADOR DE TRAFICO DE RED =============
+class NetworkTrafficAnalyzer:
+    def __init__(self):
+        self.packets = []
+        self.bandwidth_usage = 0
+        self.max_bandwidth = 100
+        self.packet_count = 0
+        self.malicious_count = 0
+    
+    def add_packet(self, packet_type, is_malicious=False):
+        self.packets.append({
+            'type': packet_type,
+            'pos': [0, random.randint(20, 180)],
+            'speed': random.randint(1, 3),
+            'is_malicious': is_malicious,
+            'size': random.randint(2, 5)
+        })
+        self.packet_count += 1
+        if is_malicious:
+            self.malicious_count += 1
+        
+        self.bandwidth_usage = min(self.max_bandwidth, 
+                                   len(self.packets) * 10)
+    
+    def update(self, dt):
+        for packet in self.packets[:]:
+            packet['pos'][0] += packet['speed'] * dt
+            if packet['pos'][0] > 300:
+                self.packets.remove(packet)
+        
+        self.bandwidth_usage = max(0, self.bandwidth_usage - 0.5 * dt)
+    
+    def render(self, surface, scroll, game_time):
+        for packet in self.packets:
+            screen_pos = [packet['pos'][0] - scroll[0], packet['pos'][1] - scroll[1]]
+            color = CYBER_COLORS['danger'] if packet['is_malicious'] else CYBER_COLORS['primary_cyan']
+            
+            pulse = abs(math.sin(game_time * 0.1)) if packet['is_malicious'] else 1
+            size = packet['size'] * pulse
+            
+            pygame.draw.circle(surface, color, (int(screen_pos[0]), int(screen_pos[1])), int(size))
+            pygame.draw.circle(surface, (255, 255, 255), (int(screen_pos[0]), int(screen_pos[1])), int(size), 1)
+    
+    def get_stats(self):
+        return {
+            'total': self.packet_count,
+            'malicious': self.malicious_count,
+            'bandwidth': self.bandwidth_usage,
+            'active': len(self.packets)
+        }
+
+
+# ============= MINI-JUEGO: FILTRO DE PAQUETES =============
+class PacketFilteringGame:
+    def __init__(self, x, y):
+        self.pos = [x, y]
+        self.packet_queue = PacketQueue(max_size=5)
+        self.firewall_rules = FirewallRuleStack()
+        self.active = False
+        self.completed = False
+        self.score = 0
+        self.required_score = 10
+        self.spawn_timer = 0
+        self.interaction_radius = 30
+    
+    def can_activate(self, player_pos):
+        distance = math.sqrt((self.pos[0] - player_pos[0])**2 + 
+                            (self.pos[1] - player_pos[1])**2)
+        return distance < self.interaction_radius and not self.completed
+    
+    def update(self, dt):
+        if not self.active:
+            return
+        
+        self.spawn_timer += dt
+        if self.spawn_timer >= 60 and not self.packet_queue.is_full():
+            is_threat = random.random() < 0.4
+            packet = {
+                'id': random.randint(1000, 9999),
+                'is_threat': is_threat,
+                'type': 'MALWARE' if is_threat else 'NORMAL',
+                'timer': 300
+            }
+            self.packet_queue.enqueue(packet)
+            self.spawn_timer = 0
+    
+    def process_current_packet(self, classify_as_threat):
+        result = self.packet_queue.process_packet(classify_as_threat)
+        if result:
+            self.score += 1
+            if self.score >= self.required_score:
+                self.completed = True
+                self.active = False
+                return 'completed'
+            return 'correct'
+        else:
+            self.score = max(0, self.score - 1)
+            return 'incorrect'
+    
+    def render(self, surface, scroll, game_time):
+        screen_pos = [self.pos[0] - scroll[0], self.pos[1] - scroll[1]]
+        
+        size = 15
+        if not self.completed:
+            color = CYBER_COLORS['primary_cyan']
+            pulse = abs(math.sin(game_time * 0.08)) * 3
+            
+            pygame.draw.rect(surface, (0, 40, 60), 
+                           (screen_pos[0] - size - pulse, screen_pos[1] - size - pulse,
+                            (size + pulse) * 2, (size + pulse) * 2))
+            pygame.draw.rect(surface, color, 
+                           (screen_pos[0] - size - pulse, screen_pos[1] - size - pulse,
+                            (size + pulse) * 2, (size + pulse) * 2), 2)
+            
+            for i in range(3):
+                y = screen_pos[1] - 6 + i * 6
+                pygame.draw.line(surface, color, 
+                               (screen_pos[0] - 8, y), (screen_pos[0] + 8, y), 1)
+        else:
+            color = CYBER_COLORS['safe']
+            pygame.draw.rect(surface, (0, 60, 40), 
+                           (screen_pos[0] - size, screen_pos[1] - size, size * 2, size * 2))
+            pygame.draw.rect(surface, color, 
+                           (screen_pos[0] - size, screen_pos[1] - size, size * 2, size * 2), 2)
+            
+            pygame.draw.line(surface, color, 
+                           (screen_pos[0] - 6, screen_pos[1]),
+                           (screen_pos[0] - 2, screen_pos[1] + 6), 2)
+            pygame.draw.line(surface, color,
+                           (screen_pos[0] - 2, screen_pos[1] + 6),
+                           (screen_pos[0] + 8, screen_pos[1] - 6), 2)
+    
+    def render_ui(self, surface):
+        if not self.active:
+            return
+        
+        ui_x = 20
+        ui_y = 40
+        
+        title_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_cyan'])
+        title_font.render('FILTRO DE PAQUETES', surface, (ui_x, ui_y))
+        
+        queue_y = ui_y + 15
+        for i, packet in enumerate(self.packet_queue.queue):
+            color = CYBER_COLORS['danger'] if packet['is_threat'] else CYBER_COLORS['safe']
+            packet_font = text.Font('data/fonts/small_font.png', color)
+            packet_text = f"{i+1}. {packet['type']}"
+            packet_font.render(packet_text, surface, (ui_x, queue_y + i * 10))
+        
+        score_y = queue_y + len(self.packet_queue.queue) * 10 + 10
+        score_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_green'])
+        score_font.render(f"SCORE: {self.score}/{self.required_score}", surface, (ui_x, score_y))
+        
+        hint_font = text.Font('data/fonts/small_font.png', (150, 150, 150))
+        hint_font.render("F: BLOQUEAR - G: PERMITIR", surface, (ui_x, score_y + 12))
+
+
 # ============= FUNCIONES DE RENDERIZADO CYBER =============
 def render_firewall(loc, size=[2, 3], color1=None, color2=None):
     global game_time
@@ -847,6 +1195,19 @@ level_puzzles = {
     ),
 }
 
+# ============= MINI-JUEGOS DE FILTRADO DE PAQUETES POR NIVEL =============
+level_packet_games = {
+    'level_1': PacketFilteringGame(500, 165),
+    'level_2': PacketFilteringGame(550, 100),
+    'level_3': None,
+    'level_4': None,
+}
+
+# Inicializar sistemas globales de ciberseguridad
+ids_system = IntrusionDetectionSystem()
+traffic_analyzer = NetworkTrafficAnalyzer()
+firewall_stack = FirewallRuleStack()
+
 # Load sounds with fallback for environments without audio
 try:
     sounds = {k.split('.')[0]: pygame.mixer.Sound('data/sfx/' + k) for k in os.listdir('data/sfx')}
@@ -880,7 +1241,7 @@ def fadeout_music(time_ms):
         pass
 
 def reload_level(restart_audio=True):
-    global player, projectiles, particles, scroll_target, events, soul_mode, level_time, player_mana, level_map, player_message, zoom, death, next_level, door, ready_to_exit, tutorial, tutorial_2, true_scroll, npcs, current_puzzle, puzzle_input_active, puzzle_user_input
+    global player, projectiles, particles, scroll_target, events, soul_mode, level_time, player_mana, level_map, player_message, zoom, death, next_level, door, ready_to_exit, tutorial, tutorial_2, true_scroll, npcs, current_puzzle, puzzle_input_active, puzzle_user_input, current_packet_game, ids_system, traffic_analyzer, firewall_stack
     level_map.load_map(level_name + '.json')
     player.pos = level_spawns[level_name].copy()
     soul.pos = level_spawns[level_name].copy()
@@ -918,6 +1279,12 @@ def reload_level(restart_audio=True):
                                      puzzle_data.question)
     else:
         current_puzzle = None
+    
+    if level_name in level_packet_games and level_packet_games[level_name]:
+        game_data = level_packet_games[level_name]
+        current_packet_game = PacketFilteringGame(game_data.pos[0], game_data.pos[1])
+    else:
+        current_packet_game = None
     
     if level_name == 'level_1':
         tutorial = 0
@@ -1020,6 +1387,9 @@ npcs = []
 current_puzzle = None
 puzzle_input_active = False
 puzzle_user_input = ""
+
+# Variables para mini-juego de filtrado de paquetes
+current_packet_game = None
 
 # Inicializar menú
 game_menu = GameMenu(display, font)
@@ -1211,6 +1581,31 @@ while True:
                 red_font.render(current_puzzle.message, display,
                               (display.get_width() // 2 - font.width(current_puzzle.message) // 2, msg_y))
     
+    if current_packet_game:
+        current_packet_game.update(dt)
+        current_packet_game.render(display, scroll, game_time)
+        if current_packet_game.can_activate(player.pos) and not current_packet_game.completed:
+            screen_pos = [current_packet_game.pos[0] - scroll[0], current_packet_game.pos[1] - scroll[1]]
+            font.render('[E] Filtrado', display, (screen_pos[0] - 20, screen_pos[1] - 25))
+        current_packet_game.render_ui(display)
+    
+    ids_system.update(dt)
+    ids_system.render(display, [display.get_width() - 70, 30], game_time)
+    
+    firewall_stack.update(dt)
+    firewall_stack.render(display, [10, 30], game_time)
+    firewall_stack.render_message(display)
+    
+    if game_time % 120 == 0 and random.random() < 0.3:
+        is_mal = random.random() < 0.4
+        traffic_analyzer.add_packet('TCP', is_mal)
+        if is_mal:
+            ids_system.add_threat('Trafico Malicioso', random.randint(10, 40))
+    
+    traffic_analyzer.update(dt)
+    if level_name in ['level_2', 'level_3']:
+        traffic_analyzer.render(display, scroll, game_time)
+    
     # Renderizar jugador después de tiles pero antes de actualización
     if not death:
         player.render(display, scroll)
@@ -1372,6 +1767,53 @@ while True:
                         puzzle_user_input = ""
                         player_message = [400, current_puzzle.question, '']
                         play_sound('thought')
+                
+                if current_packet_game and current_packet_game.can_activate(player.pos):
+                    current_packet_game.active = not current_packet_game.active
+                    if current_packet_game.active:
+                        player_message = [300, 'Mini-juego: Filtrado de Paquetes activado!', '']
+                        play_sound('thought')
+            
+            if event.key == K_f and current_packet_game and current_packet_game.active:
+                result = current_packet_game.process_current_packet(True)
+                if result == 'completed':
+                    player_message = [200, 'Sistema de filtrado completado!', '']
+                    player_mana += 1
+                    play_sound('mana_1')
+                elif result == 'correct':
+                    play_sound('mana_2')
+                else:
+                    play_sound('death')
+            
+            if event.key == K_g and current_packet_game and current_packet_game.active:
+                result = current_packet_game.process_current_packet(False)
+                if result == 'completed':
+                    player_message = [200, 'Sistema de filtrado completado!', '']
+                    player_mana += 1
+                    play_sound('mana_1')
+                elif result == 'correct':
+                    play_sound('mana_2')
+                else:
+                    play_sound('death')
+            
+            if event.key == K_1:
+                if firewall_stack.push(firewall_stack.available_rules[0]):
+                    play_sound('mana_2')
+            if event.key == K_2:
+                if firewall_stack.push(firewall_stack.available_rules[1]):
+                    play_sound('mana_2')
+            if event.key == K_3:
+                if firewall_stack.push(firewall_stack.available_rules[2]):
+                    play_sound('mana_2')
+            if event.key == K_4:
+                if firewall_stack.push(firewall_stack.available_rules[3]):
+                    play_sound('mana_2')
+            if event.key == K_5:
+                if firewall_stack.push(firewall_stack.available_rules[4]):
+                    play_sound('mana_2')
+            if event.key == K_u:
+                if firewall_stack.pop():
+                    play_sound('death')
             
             if event.key == K_q:
                 player_message = [180, 'Test message', '']
@@ -1811,7 +2253,7 @@ while True:
             cursor_x = box_x + 5 + font.width(puzzle_user_input)
             pygame.draw.rect(display, CYBER_COLORS['primary_green'], (cursor_x, box_y + 10, 2, 10))
         
-        hint_text = "Soy un sistema que vigila quién entra y quién sale en una red. Enter: Enviar - ESC: Cancelar"
+        hint_text = "Soy un sistema que vigila quien entra y quien sale en una red. Enter: Enviar - ESC: Cancelar"
         font.render(hint_text, display, (display.get_width() // 2 - font.width(hint_text) // 2, box_y - 15))
 
     # HUD

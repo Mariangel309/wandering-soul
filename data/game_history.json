@@ -288,5 +288,18 @@
     "breaches": 0,
     "final_level": "level_1",
     "levels_completed": []
+  },
+  {
+    "player_name": "lili",
+    "date": "2025-11-17 18:48:10",
+    "duration_seconds": 588,
+    "duration_formatted": "9m 48s",
+    "threats_neutralized": 651622,
+    "firewalls_collected": 18,
+    "breaches": 17,
+    "final_level": "level_2",
+    "levels_completed": [
+      "level_2"
+    ]
   }
 ]
