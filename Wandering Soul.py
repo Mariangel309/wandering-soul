@@ -63,6 +63,76 @@ CYBER_MESSAGES = {
     'move_on': 'Debo seguir adelante...',
 }
 
+# ============= HISTORIA Y OBJETIVOS DEL JUEGO =============
+GAME_STORY = {
+    'intro': [
+        'ANO 2084 - CRISIS GLOBAL DE SEGURIDAD',
+        '',
+        'Una amenaza desconocida ha comprometido',
+        'la infraestructura digital mundial.',
+        '',
+        'Tu eres el ultimo Guardian de Red,',
+        'un agente especializado en neutralizar',
+        'amenazas ciberneticas.',
+        '',
+        'TU MISION: Restaurar la seguridad de',
+        '4 sectores criticos de la red global.',
+        '',
+        'HERRAMIENTAS:',
+        '- FIREWALLS: Recursos computacionales',
+        '- SONDA REMOTA: Explora areas peligrosas',
+        '- TERMINALES: Resuelve desafios',
+        '',
+        '[Presiona ESPACIO para comenzar]'
+    ]
+}
+
+LEVEL_OBJECTIVES = {
+    'level_1': {
+        'title': 'SECTOR 1: ZONA DE ENTRENAMIENTO',
+        'objectives': [
+            '1. Aprende los controles basicos',
+            '2. Recolecta 1 firewall (recurso)',
+            '3. Habla con los NPCs (tecla E)',
+            '4. Usa tu sonda remota (flecha abajo)',
+            '5. Alcanza el puerto seguro'
+        ],
+        'concept': 'CONCEPTO: Los firewalls son barreras de seguridad\nque protegen redes de accesos no autorizados.'
+    },
+    'level_2': {
+        'title': 'SECTOR 2: TRAFICO MALICIOSO',
+        'objectives': [
+            '1. Esquiva los paquetes maliciosos',
+            '2. Encuentra y habla con los NPCs',
+            '3. Resuelve el desafio de protocolo',
+            '4. Sobrevive a las oleadas de ataques',
+            '5. Accede al puerto seguro'
+        ],
+        'concept': 'CONCEPTO: HTTPS es el protocolo seguro de internet.\nEncripta la comunicacion entre navegador y servidor.'
+    },
+    'level_3': {
+        'title': 'SECTOR 3: AMENAZA PERSISTENTE',
+        'objectives': [
+            '1. Enfrenta al servidor comprometido',
+            '2. Aprende sobre encriptacion',
+            '3. Usa tus recursos estrategicamente',
+            '4. Neutraliza la amenaza avanzada',
+            '5. Restaura la seguridad del sector'
+        ],
+        'concept': 'CONCEPTO: La encriptacion protege datos\ntransformandolos en codigo ilegible sin la clave.'
+    },
+    'level_4': {
+        'title': 'SECTOR 4: NUCLEO DEL SISTEMA',
+        'objectives': [
+            '1. Alcanza el nucleo central',
+            '2. Completa el desafio final',
+            '3. Restaura la seguridad global',
+            '4. Conviertete en el Guardian definitivo'
+        ],
+        'concept': 'CONCEPTO: La seguridad en capas combina\nmultiples defensas para proteccion robusta.'
+    }
+}
+
 # ============= SISTEMA DE HISTORIAL =============
 class GameHistory:
     def __init__(self):
@@ -268,6 +338,7 @@ class MenuState:
     MAIN = 0
     HISTORY = 1
     NAME_INPUT = 2
+    STORY = 3
 
 
 class GameMenu:
@@ -424,6 +495,32 @@ class GameMenu:
         
         self.back_button.draw(self.display)
     
+    def draw_story(self, game_time):
+        self.render_cyber_background(game_time)
+        
+        y_offset = 15
+        for line in GAME_STORY['intro']:
+            if line == '':
+                y_offset += 8
+            elif line.startswith('ANO') or line.startswith('TU MISION') or line.startswith('HERRAMIENTAS'):
+                cyan_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_cyan'])
+                line_x = self.display.get_width() // 2 - self.font.width(line) // 2
+                cyan_font.render(line, self.display, (line_x, y_offset))
+                y_offset += 12
+            elif line.startswith('['):
+                green_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_green'])
+                line_x = self.display.get_width() // 2 - self.font.width(line) // 2
+                glow = abs(math.sin(game_time * 0.1)) * 20
+                glow_color = (0, int(255 - glow), int(100 + glow))
+                glow_font = text.Font('data/fonts/small_font.png', glow_color)
+                glow_font.render(line, self.display, (line_x, y_offset))
+                y_offset += 12
+            else:
+                white_font = text.Font('data/fonts/small_font.png', (200, 200, 200))
+                line_x = self.display.get_width() // 2 - self.font.width(line) // 2
+                white_font.render(line, self.display, (line_x, y_offset))
+                y_offset += 10
+    
     def update(self, game_time, events, mouse_pos, mouse_pressed):
         single_click = mouse_pressed and not self.clicked_last_frame
         self.clicked_last_frame = mouse_pressed
@@ -436,8 +533,8 @@ class GameMenu:
             self.exit_button.check_hover(mouse_pos)
             
             if self.start_button.check_click(mouse_pos, single_click):
-                self.state = MenuState.NAME_INPUT
-                return 'name_input'
+                self.state = MenuState.STORY
+                return 'story'
             
             if self.history_button.check_click(mouse_pos, single_click):
                 self.state = MenuState.HISTORY
@@ -448,6 +545,14 @@ class GameMenu:
                 return 'exit'
             
             self.draw_main_menu(game_time)
+        
+        elif self.state == MenuState.STORY:
+            for event in events:
+                if event.type == KEYDOWN and event.key == K_SPACE:
+                    self.state = MenuState.NAME_INPUT
+                    return 'name_input'
+            
+            self.draw_story(game_time)
         
         elif self.state == MenuState.NAME_INPUT:
             for event in events:
@@ -1130,44 +1235,44 @@ level_npcs = {
     'level_1': [
         NPC(250, 165, 'Firewall Alpha', [
             'Bienvenido, Guardian de Red.',
-            'Este sector ha sido comprometido.',
-            'Colecta firewalls para fortalecer tus defensas.'
+            'Los FIREWALLS bloquean trafico no autorizado.',
+            'Recolecta recursos para explorar zonas peligrosas.'
         ], 'firewall'),
         NPC(450, 130, 'Servidor Aliado', [
-            'Los ataques DDoS saturan este nodo.',
-            'Necesitas mas recursos para continuar.',
-            'El puerto seguro esta al final...'
+            'Los ataques DDoS saturan servidores con trafico.',
+            'Necesitas recursos para usar tu sonda remota.',
+            'El puerto seguro esta al final del sector.'
         ], 'server'),
     ],
     'level_2': [
-        NPC(450, 100, 'Firewall Beta', [
-            'Sector 2: Alta actividad de malware.',
-            'Los patrones de ataque son mas complejos.',
-            'Mantente alerta, Guardian.'
+        NPC(450, 168, 'Firewall Beta', [
+            'Este sector sufre ataques de paquetes maliciosos.',
+            'Los atacantes envian datos daninos a la red.',
+            'Usa tu agilidad para esquivar las amenazas.'
         ], 'firewall'),
-        NPC(600, 150, 'Nodo de Inteligencia', [
-            'Detectando trafico sospechoso...',
-            'Recomiendo activar protocolos avanzados.',
-            'El puzzle te ayudara a avanzar.'
+        NPC(600, 168, 'Nodo de Inteligencia', [
+            'El protocolo HTTPS protege las comunicaciones.',
+            'Encripta datos entre cliente y servidor.',
+            'Resuelve el terminal para avanzar de forma segura.'
         ], 'server'),
     ],
     'level_3': [
         NPC(400, 380, 'Firewall Gamma', [
-            'Zona critica: Amenaza persistente avanzada.',
-            'Los atacantes usan tecnicas de evasion.',
-            'Confia en tus instintos.'
+            'Amenaza Persistente Avanzada (APT) detectada.',
+            'Los APT son ataques sofisticados y prolongados.',
+            'La ENCRIPTACION protege datos sensibles.'
         ], 'firewall'),
         NPC(550, 400, 'Centro de Operaciones', [
-            'Sistema bajo asedio constante.',
-            'Cada segundo cuenta, Guardian.',
-            'La seguridad de la red depende de ti.'
+            'La encriptacion transforma datos en codigo.',
+            'Solo quien tiene la clave puede leerlos.',
+            'Es fundamental para la privacidad digital.'
         ], 'server'),
     ],
     'level_4': [
         NPC(400, 220, 'Firewall Omega', [
             'Has llegado al nucleo del sistema.',
-            'Esta es la ultima linea de defensa.',
-            'Felicidades, Guardian. Mision cumplida.'
+            'La seguridad en capas usa multiples defensas.',
+            'Felicidades, Guardian. Red restaurada!'
         ], 'firewall'),
     ],
 }
@@ -1176,22 +1281,22 @@ level_puzzles = {
     'level_1': CyberPuzzle(
         650, 80, 'terminal',
         'FIREWALL',
-        'Terminal bloqueada. Password: Que protege la red?'
+        'Barrera que filtra trafico de red? (F_R_W_LL)'
     ),
     'level_2': CyberPuzzle(
         700, 120, 'terminal',
         'HTTPS',
-        'Protocolo seguro de transferencia? (HTTP_)'
+        'Protocolo web seguro con encriptacion? (HTTP_)'
     ),
     'level_3': CyberPuzzle(
         650, 380, 'terminal',
         'ENCRYPTION',
-        'Tecnica para proteger datos? (EN_R_PT__N)'
+        'Protege datos convirtiendolos en codigo? (_NCR_PT__N)'
     ),
     'level_4': CyberPuzzle(
         500, 220, 'terminal',
         'GUARDIAN',
-        'Desbloqueo final. Tu identidad? (G_ _RD_ _N)'
+        'Defensor de la seguridad digital? (GU_RD__N)'
     ),
 }
 
@@ -1241,7 +1346,7 @@ def fadeout_music(time_ms):
         pass
 
 def reload_level(restart_audio=True):
-    global player, projectiles, particles, scroll_target, events, soul_mode, level_time, player_mana, level_map, player_message, zoom, death, next_level, door, ready_to_exit, tutorial, tutorial_2, true_scroll, npcs, current_puzzle, puzzle_input_active, puzzle_user_input, current_packet_game, ids_system, traffic_analyzer, firewall_stack
+    global player, projectiles, particles, scroll_target, events, soul_mode, level_time, player_mana, level_map, player_message, zoom, death, next_level, door, ready_to_exit, tutorial, tutorial_2, true_scroll, npcs, current_puzzle, puzzle_input_active, puzzle_user_input, current_packet_game, ids_system, traffic_analyzer, firewall_stack, show_level_objectives, objectives_dismissed
     level_map.load_map(level_name + '.json')
     player.pos = level_spawns[level_name].copy()
     soul.pos = level_spawns[level_name].copy()
@@ -1265,6 +1370,8 @@ def reload_level(restart_audio=True):
     player_message = [0, '', '']
     puzzle_input_active = False
     puzzle_user_input = ""
+    show_level_objectives = True
+    objectives_dismissed = False
     
     if level_name in level_npcs:
         npcs = [NPC(npc.pos[0], npc.pos[1], npc.name, npc.dialogues.copy(), npc.npc_type) 
@@ -1391,12 +1498,68 @@ puzzle_user_input = ""
 # Variables para mini-juego de filtrado de paquetes
 current_packet_game = None
 
+# Variables para objetivos de nivel
+show_level_objectives = False
+objectives_dismissed = False
+
 # Inicializar menú
 game_menu = GameMenu(display, font)
 game_state = 'menu'
 game_history = game_menu.history
 
 play_music('data/music_1.wav')
+
+# Función para renderizar objetivos del nivel
+def render_level_objectives(current_level, game_time):
+    if current_level not in LEVEL_OBJECTIVES:
+        return
+    
+    obj_data = LEVEL_OBJECTIVES[current_level]
+    
+    # Fondo semi-transparente
+    overlay = pygame.Surface((display.get_width(), display.get_height()))
+    overlay.fill((5, 10, 15))
+    overlay.set_alpha(230)
+    display.blit(overlay, (0, 0))
+    
+    # Título del sector
+    title_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_cyan'])
+    title_x = display.get_width() // 2 - font.width(obj_data['title']) // 2
+    title_font.render(obj_data['title'], display, (title_x, 20))
+    
+    pygame.draw.line(display, CYBER_COLORS['primary_cyan'], 
+                    (20, 35), (display.get_width() - 20, 35), 1)
+    
+    # Objetivos
+    y_offset = 45
+    obj_label_font = text.Font('data/fonts/small_font.png', CYBER_COLORS['primary_green'])
+    obj_label_font.render('OBJETIVOS:', display, (25, y_offset))
+    y_offset += 15
+    
+    white_font = text.Font('data/fonts/small_font.png', (200, 200, 200))
+    for objective in obj_data['objectives']:
+        white_font.render(objective, display, (30, y_offset))
+        y_offset += 11
+    
+    # Concepto educativo
+    y_offset += 8
+    pygame.draw.line(display, CYBER_COLORS['primary_cyan'], 
+                    (20, y_offset), (display.get_width() - 20, y_offset), 1)
+    y_offset += 8
+    
+    concept_lines = obj_data['concept'].split('\n')
+    yellow_font = text.Font('data/fonts/small_font.png', (255, 220, 100))
+    for line in concept_lines:
+        yellow_font.render(line, display, (25, y_offset))
+        y_offset += 10
+    
+    # Instrucción para continuar
+    glow = abs(math.sin(game_time * 0.1)) * 20
+    glow_color = (0, int(255 - glow), int(100 + glow))
+    continue_font = text.Font('data/fonts/small_font.png', glow_color)
+    continue_text = '[Presiona ESPACIO para iniciar]'
+    continue_x = display.get_width() // 2 - font.width(continue_text) // 2
+    continue_font.render(continue_text, display, (continue_x, display.get_height() - 20))
 
 while True:
     # MENÚ
@@ -1732,6 +1895,10 @@ while True:
                     pygame.quit()
                     sys.exit()
             
+            if event.key == K_SPACE and show_level_objectives and not objectives_dismissed:
+                show_level_objectives = False
+                objectives_dismissed = True
+            
             if puzzle_input_active:
                 if event.key == K_BACKSPACE:
                     puzzle_user_input = puzzle_user_input[:-1]
@@ -1922,31 +2089,31 @@ while True:
         last = events['lv2timer']
         events['lv2timer'] += dt
         if events['lv2timer'] < 6:
-            player_message = [420, CYBER_MESSAGES['trap'], '']
+            player_message = [420, 'Preparate para el desafio...', '']
         if (last < 920) and (events['lv2timer'] >= 920):
             reset = True
-            player_message = [420, CYBER_MESSAGES['survive'], '']
+            player_message = [420, 'Esquiva los paquetes maliciosos!', '']
         if (last < 1840) and (events['lv2timer'] >= 1840):
             reset = True
         if (last < 2750) and (events['lv2timer'] >= 2750):
             reset = True
-        if (3050 < events['lv2timer'] < 3650):
-            if (events['lv2timer'] % 250 < last % 250) or (events['lv2timer'] % 110 < last % 110):
+        if (3200 < events['lv2timer'] < 3500):
+            if (events['lv2timer'] % 350 < last % 350) or (events['lv2timer'] % 180 < last % 180):
                 dir = random.choice([-1, 1])
                 offset = random.randint(0, 20) / 20
-                for i in range(11):
+                for i in range(6):
                     i -= offset
-                    vel = [4 * dir, 0]
+                    vel = [3.5 * dir, 0]
                     angle = math.atan2(vel[1], vel[0])
                     if dir == -1:
-                        spawn = [display.get_width() + scroll[0], display.get_height() * i / 8 + scroll[1]]
+                        spawn = [display.get_width() + scroll[0], display.get_height() * i / 5 + scroll[1]]
                     else:
-                        spawn = [scroll[0], display.get_height() * i / 8 + scroll[1]]
+                        spawn = [scroll[0], display.get_height() * i / 5 + scroll[1]]
                     for j in range(5):
                         sparks.append([spawn.copy(), angle + math.radians(random.randint(0, 80) - 40), 4 + random.randint(0, 30) / 10, 10, CYBER_COLORS['danger']])
                     projectiles.append([spawn, vel, 'enemy'])
                 play_sound('eye_shoot_large')
-        if (last < 3880) and (events['lv2timer'] >= 3880):
+        if (last < 3700) and (events['lv2timer'] >= 3700):
             reset = True
             player_message = [420, CYBER_MESSAGES['clear'], '']
             door = (330, 372)
@@ -2112,7 +2279,7 @@ while True:
     if (events['lv1'] or level_name != 'level_1') and (not map_transition) and (events['lv3timer'] < 6300) and (level_name != 'level_4'):
         rate = 25
         if (level_name == 'level_2') and ((240 < events['lv2timer'] < 840) or (1200 < events['lv2timer'] < 1760) or (2000 < events['lv2timer'] < 2600)):
-            rate = 6
+            rate = 12
         if random.randint(0, rate) == 0:
             vel = [random.randint(0, 20) / 10 - 1, 4]
             angle = math.atan2(vel[1], vel[0])
@@ -2271,6 +2438,10 @@ while True:
 
     for i in range(player_mana):
         render_firewall([10 + i * 16, 18])
+
+    # Mostrar objetivos del nivel si corresponde
+    if show_level_objectives and not objectives_dismissed:
+        render_level_objectives(level_name, game_time)
 
     if zoom == 1:
         screen.blit(pygame.transform.scale(display, screen.get_size()), (0, 0))

@@ -301,5 +301,29 @@
     "levels_completed": [
       "level_2"
     ]
+  },
+  {
+    "player_name": "maia",
+    "date": "2025-11-17 19:22:18",
+    "duration_seconds": 31,
+    "duration_formatted": "31s",
+    "threats_neutralized": 0,
+    "firewalls_collected": 0,
+    "breaches": 0,
+    "final_level": "level_1",
+    "levels_completed": []
+  },
+  {
+    "player_name": "mailiu",
+    "date": "2025-11-17 19:32:30",
+    "duration_seconds": 594,
+    "duration_formatted": "9m 54s",
+    "threats_neutralized": 2119962,
+    "firewalls_collected": 26,
+    "breaches": 14,
+    "final_level": "level_2",
+    "levels_completed": [
+      "level_2"
+    ]
   }
 ]
